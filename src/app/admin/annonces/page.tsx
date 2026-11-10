@@ -31,7 +31,7 @@ async function ListeAnnonces() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  // 👇 On récupère le rôle de l'utilisateur
+  // 👇 On récupère le rôle
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
   const isAdmin = profile?.role === 'admin';
 
