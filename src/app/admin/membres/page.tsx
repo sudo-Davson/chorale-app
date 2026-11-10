@@ -2,13 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { toast } from 'sonner';
 import Link from 'next/link';
+import ConfirmModal from '@/components/ConfirmModal';
 
 export default function AdminMembresPage() {
   const supabase = createClient();
   const [membres, setMembres] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  
+  // État pour la modale
+  const [selectedMembre, setSelectedMembre] = useState<any>(null);
 
   useEffect(() => {
     async function init() {
@@ -25,19 +30,15 @@ export default function AdminMembresPage() {
     setLoading(false);
   }
 
-  async function toggleRole(id: string, currentRole: string) {
-    if (id === currentUserId) {
-      alert("Vous ne pouvez pas modifier votre propre rôle.");
-      return;
-    }
-
-    const newRole = currentRole === 'admin' ? 'choriste' : 'admin';
-    if (!confirm(`Passer ce membre en ${newRole} ?`)) return;
-
-    const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', id);
+  async function confirmToggleRole() {
+    if (!selectedMembre) return;
+    const newRole = selectedMembre.role === 'admin' ? 'choriste' : 'admin';
+    
+    const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', selectedMembre.id);
     if (error) {
-      alert(error.message);
+      toast.error(error.message);
     } else {
+      toast.success(`Le rôle a été mis à jour en ${newRole}.`);
       fetchMembres();
     }
   }
@@ -63,7 +64,7 @@ export default function AdminMembresPage() {
                 <p className="text-xs text-gray-400">{membre.voice || 'Voix non définie'}</p>
               </div>
               <button 
-                onClick={() => toggleRole(membre.id, membre.role)}
+                onClick={() => setSelectedMembre(membre)}
                 disabled={membre.id === currentUserId}
                 className={`text-xs px-3 py-1.5 rounded-full font-bold transition-colors disabled:opacity-50 ${
                   membre.role === 'admin' 
@@ -77,6 +78,16 @@ export default function AdminMembresPage() {
           ))}
         </div>
       )}
+
+      {/* Modale de changement de rôle */}
+      <ConfirmModal 
+        isOpen={!!selectedMembre}
+        onClose={() => setSelectedMembre(null)}
+        onConfirm={confirmToggleRole}
+        title="Changer le rôle"
+        message={selectedMembre ? `Voulez-vous passer ${selectedMembre.first_name} en ${selectedMembre.role === 'admin' ? 'choriste' : 'administrateur'} ?` : ''}
+        isDestructive={selectedMembre?.role === 'admin'}
+      />
     </div>
   );
 }
