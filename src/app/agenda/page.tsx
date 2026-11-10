@@ -31,6 +31,10 @@ async function ListeEvenements() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
+  // 👇 On récupère le rôle de l'utilisateur
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  const isAdmin = profile?.role === 'admin';
+
   const { data: events } = await supabase
     .from('events')
     .select('*')
@@ -48,7 +52,7 @@ async function ListeEvenements() {
   return (
     <div className="space-y-4">
       {events.map((event) => (
-        <EventCard key={event.id} event={event} />
+        <EventCard key={event.id} event={event} isAdmin={isAdmin} />
       ))}
     </div>
   );
