@@ -3,15 +3,24 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import VoicePlayer from '@/components/VoicePlayer';
 
-// 👇 LA CORRECTION EST ICI
 export const instant = false;
 
 export default async function ChantDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params; // Next.js 16 exige d'attendre les params
+  const { id } = await params;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
+  // 1. Récupérer le profil pour connaître la voix
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('voice')
+    .eq('id', user.id)
+    .single();
+
+  const userVoice = profile?.voice;
+
+  // 2. Récupérer le chant et ses pistes
   const { data: song } = await supabase.from('songs').select('*').eq('id', id).single();
   const { data: voiceTracks } = await supabase.from('voice_tracks').select('*').eq('song_id', id);
 
@@ -57,8 +66,8 @@ export default async function ChantDetailPage({ params }: { params: Promise<{ id
         </div>
       )}
 
-      {/* Le lecteur par voix */}
-      <VoicePlayer tracks={voiceTracks || []} />
+      {/* Le lecteur par voix (filtré) */}
+      <VoicePlayer tracks={voiceTracks || []} userVoice={userVoice} />
 
       <div className="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-md">
         <h2 className="text-lg font-bold text-white mb-4 border-b border-white/10 pb-2">Paroles</h2>

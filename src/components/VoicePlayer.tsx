@@ -2,47 +2,67 @@
 
 import { useState } from 'react';
 
-export default function VoicePlayer({ tracks }: { tracks: any[] }) {
-  const [activeVoice, setActiveVoice] = useState<string | null>(tracks.length > 0 ? tracks[0].voice : null);
+const VOIX_CONFIG: Record<string, { label: string, color: string, bg: string }> = {
+  soprano: { label: 'Soprano', color: 'text-pink-400', bg: 'bg-pink-500/20 border-pink-500/30' },
+  alto: { label: 'Alto', color: 'text-purple-400', bg: 'bg-purple-500/20 border-purple-500/30' },
+  tenor: { label: 'Ténor', color: 'text-blue-400', bg: 'bg-blue-500/20 border-blue-500/30' },
+  basse: { label: 'Basse', color: 'text-teal-400', bg: 'bg-teal-500/20 border-teal-500/30' },
+};
+
+export default function VoicePlayer({ tracks, userVoice }: { tracks: any[], userVoice?: string }) {
+  // S'il y a une voix utilisateur, on la sélectionne par défaut. Sinon, on prend la 1ère dispo.
+  const [activeVoice, setActiveVoice] = useState<string | null>(
+    userVoice || (tracks.length > 0 ? tracks[0].voice : null)
+  );
 
   if (!tracks || tracks.length === 0) return null;
 
+  // On filtre les pistes à afficher
+  const tracksAffichees = userVoice 
+    ? tracks.filter(t => t.voice === userVoice) 
+    : tracks;
+
   const activeTrack = tracks.find(t => t.voice === activeVoice);
-  const voix = ['soprano', 'alto', 'tenor', 'basse'];
-  const colors: Record<string, string> = {
-    soprano: 'bg-pink-500/20 text-pink-400 border-pink-500/30',
-    alto: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-    tenor: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-    basse: 'bg-teal-500/20 text-teal-400 border-teal-500/30'
-  };
+
+  if (tracksAffichees.length === 0) {
+    return (
+      <div className="bg-white/5 border border-white/10 rounded-3xl p-5 mb-8 text-center text-gray-400 text-sm">
+        Aucune piste audio n'est disponible pour votre voix ({userVoice}).
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white/5 border border-white/10 rounded-3xl p-5 mb-8">
-      <h2 className="text-lg font-bold text-white mb-4">🎧 Entraînement par voix</h2>
+      <h2 className="text-lg font-bold text-white mb-4">
+        🎧 Entraînement {userVoice ? `(Voix : ${userVoice})` : 'par voix'}
+      </h2>
       
-      {/* Boutons de sélection */}
-      <div className="grid grid-cols-2 gap-2 mb-4">
-        {voix.map(v => {
-          const hasTrack = tracks.some(t => t.voice === v);
-          if (!hasTrack) return null;
-          
-          return (
-            <button
-              key={v}
-              onClick={() => setActiveVoice(v)}
-              className={`py-2 px-3 rounded-xl border text-sm font-bold capitalize transition-all ${
-                activeVoice === v ? colors[v] : 'bg-transparent border-white/10 text-gray-500 hover:bg-white/5'
-              }`}
-            >
-              {v}
-            </button>
-          );
-        })}
-      </div>
+      {/* Boutons de sélection (affichés uniquement si l'utilisateur n'a pas de voix définie) */}
+      {!userVoice && (
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          {tracksAffichees.map(t => {
+            const config = VOIX_CONFIG[t.voice];
+            if (!config) return null;
+            
+            return (
+              <button
+                key={t.voice}
+                onClick={() => setActiveVoice(t.voice)}
+                className={`py-2 px-3 rounded-xl border text-sm font-bold capitalize transition-all ${
+                  activeVoice === t.voice ? config.bg + ' ' + config.color : 'bg-transparent border-white/10 text-gray-500 hover:bg-white/5'
+                }`}
+              >
+                {config.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Lecteur audio */}
       {activeTrack && (
-        <div className="mt-4">
+        <div className="mt-2">
           <audio key={activeTrack.audio_url} controls autoPlay className="w-full">
             <source src={activeTrack.audio_url} type="audio/mpeg" />
           </audio>
