@@ -11,6 +11,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [voice, setVoice] = useState(''); // 👈 Nouvel état pour la voix
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -32,7 +33,13 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { first_name: firstName, last_name: lastName } },
+        options: { 
+          data: { 
+            first_name: firstName, 
+            last_name: lastName,
+            voice: voice || null // 👈 On envoie la voix au Trigger
+          } 
+        },
       });
       if (error) setError(error.message);
       else router.push('/accueil');
@@ -41,11 +48,8 @@ export default function LoginPage() {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
-      if (error) {
-        setError(error.message);
-      } else {
-        setSuccessMsg("Un lien de réinitialisation vous a été envoyé par email.");
-      }
+      if (error) setError(error.message);
+      else setSuccessMsg("Un lien de réinitialisation vous a été envoyé par email.");
     }
 
     setLoading(false);
@@ -66,8 +70,22 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           {mode === 'signup' && (
             <>
-              <input type="text" placeholder="Prénom" value={firstName} onChange={(e) => setFirstName(e.target.value)} required className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all" />
-              <input type="text" placeholder="Nom" value={lastName} onChange={(e) => setLastName(e.target.value)} required className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all" />
+              <div className="grid grid-cols-2 gap-3">
+                <input type="text" placeholder="Prénom" value={firstName} onChange={(e) => setFirstName(e.target.value)} required className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all" />
+                <input type="text" placeholder="Nom" value={lastName} onChange={(e) => setLastName(e.target.value)} required className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all" />
+              </div>
+              <select 
+                value={voice} 
+                onChange={(e) => setVoice(e.target.value)} 
+                required 
+                className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none"
+              >
+                <option value="" disabled className="text-slate-900">Choisissez votre voix</option>
+                <option value="soprano" className="text-slate-900">Soprano</option>
+                <option value="alto" className="text-slate-900">Alto</option>
+                <option value="tenor" className="text-slate-900">Ténor</option>
+                <option value="basse" className="text-slate-900">Basse</option>
+              </select>
             </>
           )}
           

@@ -1,26 +1,11 @@
+import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { connection } from 'next/server';
 import BottomNav from '@/components/BottomNav';
 import Link from 'next/link';
 
-export const instant = false;
-
-// Générateur de couleurs pour les fausses pochettes
-const gradients = [
-  'from-pink-500 to-rose-500', 'from-purple-500 to-indigo-500', 'from-blue-500 to-cyan-500',
-  'from-emerald-500 to-teal-500', 'from-orange-500 to-amber-500'
-];
-
-export default async function ChantsPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
-
-  const { data: songs } = await supabase
-    .from('songs')
-    .select('*')
-    .order('created_at', { ascending: false });
-
+export default function ChantsPage() {
   return (
     <div className="pb-32 max-w-lg mx-auto p-6 min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 to-slate-950">
       <header className="mt-4 mb-8">
@@ -30,20 +15,58 @@ export default async function ChantsPage() {
         <p className="text-gray-400 mt-1">Tous les chants de la chorale</p>
       </header>
 
-      {/* Filtres factices (catégories) */}
-      <div className="flex gap-3 overflow-x-auto pb-4 mb-4 scrollbar-hide">
-        {['Tous', 'Messe', 'Louange', 'Noël', 'Pâques'].map((cat, i) => (
-          <button key={cat} className={`px-5 py-2 rounded-full whitespace-nowrap text-sm font-medium transition-colors ${i === 0 ? 'bg-white text-slate-900' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}>
-            {cat}
-          </button>
-        ))}
-      </div>
+      <Suspense fallback={<div className="text-center p-8 text-purple-400 animate-pulse">Chargement des chants...</div>}>
+        <ListeChants />
+      </Suspense>
+
+      <BottomNav />
+    </div>
+  );
+}
+
+async function ListeChants() {
+  await connection();
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
+
+  // 1. Récupérer le profil pour connaître la voix
+  const { data: profile } = await supabase.from('profiles').select('voice').eq('id', user.id).single();
+  const userVoice = profile?.voice;
+
+  // 2. Récupérer tous les chants et leurs pistes vocales
+  const { data: songs } = await supabase
+    .from('songs')
+    .select('*, voice_tracks(voice)')
+    .order('created_at', { ascending: false });
+
+  // 3. Le tri intelligent
+  let chantsAffiches = songs || [];
+  if (userVoice) {
+    // On garde les chants qui ont la piste de la voix de l'utilisateur
+    chantsAffiches = chantsAffiches.filter(song => 
+      song.voice_tracks?.some((track: any) => track.voice === userVoice)
+    );
+  }
+
+  const gradients = [
+    'from-pink-500 to-rose-500', 'from-purple-500 to-indigo-500', 'from-blue-500 to-cyan-500',
+    'from-emerald-500 to-teal-500', 'from-orange-500 to-amber-500'
+  ];
+
+  return (
+    <>
+      {userVoice && (
+        <div className="mb-4 bg-white/5 border border-white/10 p-3 rounded-2xl flex items-center gap-2 text-sm text-gray-300">
+          <span>🎤 Filtré pour votre voix :</span>
+          <span className="font-bold text-white capitalize">{userVoice}</span>
+        </div>
+      )}
 
       <div className="space-y-4">
-        {songs && songs.length > 0 ? (
-          songs.map((song, index) => (
+        {chantsAffiches.length > 0 ? (
+          chantsAffiches.map((song, index) => (
             <Link href={`/chants/${song.id}`} key={song.id} className="flex gap-4 items-center p-3 rounded-3xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all backdrop-blur-md">
-              {/* Fausse pochette */}
               <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${gradients[index % gradients.length]} flex-shrink-0 flex items-center justify-center shadow-lg`}>
                 <span className="text-3xl opacity-50">🎵</span>
               </div>
@@ -62,12 +85,12 @@ export default async function ChantsPage() {
           ))
         ) : (
           <div className="text-center p-8 bg-white/5 rounded-3xl border border-white/10 text-gray-400">
-            Aucun chant dans la bibliothèque.
+            {userVoice 
+              ? `Aucun chant n'a encore été enregistré pour la voix ${userVoice}.`
+              : "Aucun chant dans la bibliothèque."}
           </div>
         )}
       </div>
-
-      <BottomNav />
-    </div>
+    </>
   );
 }
