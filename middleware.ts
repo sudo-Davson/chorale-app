@@ -29,17 +29,19 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const isLoginPage = path.startsWith('/login');
+  
+  // 👇 CORRECTION 1 : On autorise aussi la page de réinitialisation de mot de passe
+  const isPublicPage = path.startsWith('/login') || path.startsWith('/reset-password');
 
-  // Si non connecté et essaie d'accéder à une autre page que /login
-  if (!user && !isLoginPage) {
+  // Si non connecté et essaie d'accéder à une page privée (ex: /accueil, /admin...)
+  if (!user && !isPublicPage) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);
   }
 
-  // Si connecté et essaie d'accéder à /login, on l'envoie à l'accueil
-  if (user && isLoginPage) {
+  // Si connecté et essaie d'accéder à la page de login, on l'envoie à l'accueil
+  if (user && path.startsWith('/login')) {
     const url = request.nextUrl.clone();
     url.pathname = '/accueil';
     return NextResponse.redirect(url);
@@ -56,7 +58,8 @@ export const config = {
      * - _next/image (images optimisées)
      * - favicon.ico
      * - fichiers images (svg, png, etc.)
+     * - 👇 CORRECTION 2 : manifest.webmanifest et sw.js (pour la PWA Android)
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };
