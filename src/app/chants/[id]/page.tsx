@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import VoicePlayer from '@/components/VoicePlayer';
+import GlobalAudioPlayer from '@/components/GlobalAudioPlayer'; // 👈 Import
 
 export const instant = false;
 
@@ -11,16 +12,9 @@ export default async function ChantDetailPage({ params }: { params: Promise<{ id
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  // 1. Récupérer le profil pour connaître la voix
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('voice')
-    .eq('id', user.id)
-    .single();
-
+  const { data: profile } = await supabase.from('profiles').select('voice').eq('id', user.id).single();
   const userVoice = profile?.voice;
 
-  // 2. Récupérer le chant et ses pistes
   const { data: song } = await supabase.from('songs').select('*').eq('id', id).single();
   const { data: voiceTracks } = await supabase.from('voice_tracks').select('*').eq('song_id', id);
 
@@ -43,7 +37,6 @@ export default async function ChantDetailPage({ params }: { params: Promise<{ id
         <p className="text-purple-400 font-medium mt-1">{song.composer || 'Auteur inconnu'}</p>
       </header>
 
-      {/* Boutons PDF et Audio Global */}
       <div className="flex gap-3 mb-6">
         {song.pdf_url && (
           <a href={song.pdf_url} target="_blank" rel="noreferrer" className="flex-1 bg-white/10 border border-white/20 text-white p-3 rounded-2xl text-center font-bold text-sm hover:bg-white/20 transition-all">
@@ -57,16 +50,12 @@ export default async function ChantDetailPage({ params }: { params: Promise<{ id
         )}
       </div>
 
-      {/* Lecteur audio global */}
       {song.audio_full_url && (
         <div className="mb-6 bg-white/5 p-4 rounded-3xl border border-white/10">
-          <audio controls className="w-full">
-            <source src={song.audio_full_url} type="audio/mpeg" />
-          </audio>
+          <GlobalAudioPlayer url={song.audio_full_url} />
         </div>
       )}
 
-      {/* Le lecteur par voix (filtré) */}
       <VoicePlayer tracks={voiceTracks || []} userVoice={userVoice} />
 
       <div className="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-md">
