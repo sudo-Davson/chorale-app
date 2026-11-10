@@ -46,6 +46,7 @@ export default function ProfilPage() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+    router.refresh(); // 👈 Vide le cache de Next.js pour oublier la session
     router.push('/login');
   };
 
@@ -141,7 +142,6 @@ export default function ProfilPage() {
 
               <div>
                 <label className="text-xs text-gray-400 ml-1">Téléphone</label>
-                {/* On change le type en "text" pour éviter les formats imposés par le navigateur */}
                 <input 
                   type="text" 
                   inputMode="tel" 
@@ -154,7 +154,6 @@ export default function ProfilPage() {
 
               <div>
                 <label className="text-xs text-gray-400 ml-1">Votre voix</label>
-                {/* 👇 CORRECTION : styles forcés en noir sur blanc pour les options */}
                 <select 
                   value={editData.voice} 
                   onChange={e => setEditData({...editData, voice: e.target.value})} 

@@ -11,7 +11,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [voice, setVoice] = useState(''); // 👈 Nouvel état pour la voix
+  const [voice, setVoice] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -26,8 +26,12 @@ export default function LoginPage() {
 
     if (mode === 'login') {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) setError(error.message);
-      else router.push('/accueil');
+      if (error) {
+        setError(error.message);
+      } else {
+        router.refresh(); // 👈 Vide le cache de Next.js pour charger le bon profil
+        router.push('/accueil');
+      }
     } 
     else if (mode === 'signup') {
       const { error } = await supabase.auth.signUp({
@@ -37,19 +41,26 @@ export default function LoginPage() {
           data: { 
             first_name: firstName, 
             last_name: lastName,
-            voice: voice || null // 👈 On envoie la voix au Trigger
+            voice: voice || null
           } 
         },
       });
-      if (error) setError(error.message);
-      else router.push('/accueil');
+      if (error) {
+        setError(error.message);
+      } else {
+        router.refresh(); // 👈 Vide le cache de Next.js pour charger le bon profil
+        router.push('/accueil');
+      }
     } 
     else if (mode === 'forgot') {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
-      if (error) setError(error.message);
-      else setSuccessMsg("Un lien de réinitialisation vous a été envoyé par email.");
+      if (error) {
+        setError(error.message);
+      } else {
+        setSuccessMsg("Un lien de réinitialisation vous a été envoyé par email.");
+      }
     }
 
     setLoading(false);
@@ -81,10 +92,10 @@ export default function LoginPage() {
                 className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none"
               >
                 <option value="" disabled className="text-slate-900">Choisissez votre voix</option>
-                <option value="soprano" className="text-slate-900">Soprano</option>
-                <option value="alto" className="text-slate-900">Alto</option>
-                <option value="tenor" className="text-slate-900">Ténor</option>
-                <option value="basse" className="text-slate-900">Basse</option>
+                <option value="soprano" className="text-slate-900 bg-white">Soprano</option>
+                <option value="alto" className="text-slate-900 bg-white">Alto</option>
+                <option value="tenor" className="text-slate-900 bg-white">Ténor</option>
+                <option value="basse" className="text-slate-900 bg-white">Basse</option>
               </select>
             </>
           )}
