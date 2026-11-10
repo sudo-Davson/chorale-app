@@ -20,21 +20,14 @@ export default function AdminChantsPage() {
   const [message, setMessage] = useState('');
   const [songs, setSongs] = useState<any[]>([]);
 
-  // 1. Charger les chants
   useEffect(() => {
     async function loadSongs() {
-      const { data, error } = await supabase
-        .from('songs')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
+      const { data } = await supabase.from('songs').select('*').order('created_at', { ascending: false });
       if (data) setSongs(data);
-      if (error) console.error("Erreur de chargement:", error);
     }
     loadSongs();
   }, []);
 
-  // 2. Ajouter un chant
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -46,21 +39,28 @@ export default function AdminChantsPage() {
     let audioUrl = null;
 
     try {
+      // 1. Upload du PDF
       if (pdfFile) {
         const fileName = `${Date.now()}-${Math.random()}.pdf`;
-        await supabase.storage.from('songs').upload(`pdfs/${fileName}`, pdfFile);
+        const { error: uploadError } = await supabase.storage.from('songs').upload(`pdfs/${fileName}`, pdfFile);
+        if (uploadError) throw new Error(`Erreur PDF : ${uploadError.message}`);
+        
         const { data } = supabase.storage.from('songs').getPublicUrl(`pdfs/${fileName}`);
         pdfUrl = data.publicUrl;
       }
 
+      // 2. Upload de l'audio
       if (audioFile) {
         const fileExt = audioFile.name.split('.').pop();
         const fileName = `${Date.now()}-${Math.random()}.${fileExt}`;
-        await supabase.storage.from('songs').upload(`audios/${fileName}`, audioFile);
+        const { error: uploadError } = await supabase.storage.from('songs').upload(`audios/${fileName}`, audioFile);
+        if (uploadError) throw new Error(`Erreur Audio : ${uploadError.message}`);
+
         const { data } = supabase.storage.from('songs').getPublicUrl(`audios/${fileName}`);
         audioUrl = data.publicUrl;
       }
 
+      // 3. Insertion dans la base de données
       const { data: newSong, error: dbError } = await supabase.from('songs').insert({
         title, composer, category, lyrics,
         pdf_url: pdfUrl, audio_full_url: audioUrl,
@@ -70,14 +70,13 @@ export default function AdminChantsPage() {
       if (dbError) throw dbError;
 
       setMessage('Chant ajouté avec succès !');
-      setSongs([newSong, ...songs]); // Met à jour la liste immédiatement
+      setSongs([newSong, ...songs]);
       setTitle(''); setComposer(''); setLyrics(''); setPdfFile(null); setAudioFile(null);
       
-      // Redirige vers la page pour ajouter les voix
       router.push(`/admin/chants/${newSong.id}`);
 
     } catch (error: any) {
-      setMessage(`Erreur : ${error.message}`);
+      setMessage(error.message); // Affichera l'erreur exacte si l'upload échoue
     } finally {
       setLoading(false);
     }
@@ -90,11 +89,10 @@ export default function AdminChantsPage() {
         <h1 className="text-2xl font-bold">Gérer les chants</h1>
       </header>
 
-      {/* Formulaire */}
       <div className="bg-white/5 border border-white/10 rounded-2xl p-5 mb-8">
         <h2 className="text-lg font-bold mb-4 text-emerald-400">Ajouter un nouveau chant</h2>
         {message && (
-          <div className={`p-3 mb-4 rounded-xl text-sm ${message.includes('succès') ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`}>
+          <div className={`p-3 mb-4 rounded-xl text-sm ${message.includes('succès') ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
             {message}
           </div>
         )}
@@ -128,7 +126,6 @@ export default function AdminChantsPage() {
         </form>
       </div>
 
-      {/* Liste des chants */}
       <h2 className="text-lg font-bold mb-4">Chants existants ({songs.length})</h2>
       
       {songs.length === 0 ? (
