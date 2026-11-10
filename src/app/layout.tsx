@@ -1,8 +1,12 @@
-import type { Metadata } from 'next';
 import { Geist } from 'next/font/google';
 import './globals.css';
+import type { Metadata, Viewport } from 'next';
 
 const geist = Geist({ subsets: ['latin'] });
+
+export const viewport: Viewport = {
+  themeColor: '#020617', 
+};
 
 export const metadata: Metadata = {
   title: 'Chorale',
