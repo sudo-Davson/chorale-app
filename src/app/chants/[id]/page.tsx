@@ -3,8 +3,11 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import VoicePlayer from '@/components/VoicePlayer';
 
+// 👇 LA CORRECTION EST ICI
+export const instant = false;
+
 export default async function ChantDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params; // Next.js 15+ exige d'attendre les params
+  const { id } = await params; // Next.js 16 exige d'attendre les params
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
@@ -54,7 +57,7 @@ export default async function ChantDetailPage({ params }: { params: Promise<{ id
         </div>
       )}
 
-      {/* Nouveau composant : Le lecteur par voix */}
+      {/* Le lecteur par voix */}
       <VoicePlayer tracks={voiceTracks || []} />
 
       <div className="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-md">
