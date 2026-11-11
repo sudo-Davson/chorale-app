@@ -31,7 +31,6 @@ async function ListeAnnonces() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  // 👇 On récupère le rôle
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
   const isAdmin = profile?.role === 'admin';
 
@@ -51,6 +50,7 @@ async function ListeAnnonces() {
   return (
     <div className="space-y-4">
       {announcements.map((annonce) => (
+        // 👇 REGARDEZ BIEN CETTE LIGNE 50
         <AnnouncementCard key={annonce.id} annonce={annonce} isAdmin={isAdmin} />
       ))}
     </div>
