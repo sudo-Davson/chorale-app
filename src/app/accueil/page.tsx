@@ -3,10 +3,15 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { connection } from 'next/server';
 import BottomNav from '@/components/BottomNav';
+import NotificationListener from '@/components/NotificationListener';
 
 export default function AccueilPage() {
   return (
     <div className="pb-32 max-w-lg mx-auto p-6 min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 to-slate-950">
+      
+      {/* 👇 Le composant d'écoute des notifications en temps réel */}
+      <NotificationListener />
+
       <Suspense fallback={<div className="text-center p-8 text-purple-400 animate-pulse mt-20">Chargement de l'accueil...</div>}>
         <AccueilContent />
       </Suspense>

@@ -32,49 +32,39 @@ function EventDetailContent() {
 
   const loadData = async () => {
     if (!eventId) return;
-    
     const { data: eventData } = await supabase.from('events').select('*').eq('id', eventId).single();
     setEvent(eventData);
-
     const { data: profiles } = await supabase.from('profiles').select('*').order('last_name');
     setMembres(profiles || []);
-
     const { data: att } = await supabase.from('attendance').select('*').eq('event_id', eventId);
-    
     const attMap: Record<string, any> = {};
     att?.forEach(a => { attMap[a.profile_id] = a; });
     setAttendance(attMap);
-
     setLoading(false);
   };
 
-  useEffect(() => {
-    loadData();
-  }, [eventId]);
+  useEffect(() => { loadData(); }, [eventId]);
 
   const calculerFrais = (status: string, eventType: string) => {
-    if (status === 'present' || status === 'requested') return 0;
+    // 👇 Permission (excused) ne coûte pas d'argent
+    if (status === 'present' || status === 'requested' || status === 'excused') return 0;
     if (status === 'late') return 50;
     if (status === 'absent') return eventType === 'celebration' ? 300 : 100;
     return 0;
   };
 
-  const updateAttendance = async (profileId: string, status: string) => {
+  const updateAttendance = async (profileId: string, status: string, sendNotification = false) => {
     const currentStatus = attendance[profileId]?.status;
 
-    // 👇 1. Si on clique sur le bouton déjà actif, on annule le pointage
     if (currentStatus === status) {
-      const { error } = await supabase.from('attendance').delete().eq('event_id', eventId).eq('profile_id', profileId);
-      if (!error) {
-        const newAtt = { ...attendance };
-        delete newAtt[profileId];
-        setAttendance(newAtt);
-        toast.info('Pointage annulé.');
-      }
+      await supabase.from('attendance').delete().eq('event_id', eventId).eq('profile_id', profileId);
+      const newAtt = { ...attendance };
+      delete newAtt[profileId];
+      setAttendance(newAtt);
+      toast.info('Pointage annulé.');
       return;
     }
 
-    // 2. Sinon, on met à jour ou on insère
     const fee = calculerFrais(status, event.type);
     const currentAtt = attendance[profileId];
 
@@ -89,37 +79,36 @@ function EventDetailContent() {
       const { data } = await supabase.from('attendance').insert({
         event_id: eventId, profile_id: profileId, status, fee
       }).select().single();
-      if (data) {
-        setAttendance(prev => ({ ...prev, [profileId]: data }));
-      }
+      if (data) setAttendance(prev => ({ ...prev, [profileId]: data }));
     }
+
+    // 👇 Envoi de la notification si c'est une acceptation de permission
+    if (sendNotification) {
+      await supabase.from('notifications').insert({
+        profile_id: profileId,
+        title: 'Permission accordée',
+        message: `Votre demande d'absence pour "${event.title}" a été acceptée.`
+      });
+    }
+
     toast.success('Pointage mis à jour.');
   };
 
-  // 👇 2. Fonction pour annuler explicitement avec le bouton ✕
   const annulerPointage = async (profileId: string) => {
-    if (!confirm("Voulez-vous annuler ce pointage et remettre le membre à zéro ?")) return;
-    
-    const { error } = await supabase.from('attendance').delete().eq('event_id', eventId).eq('profile_id', profileId);
-    if (!error) {
-      const newAtt = { ...attendance };
-      delete newAtt[profileId];
-      setAttendance(newAtt);
-      toast.success('Pointage remis à zéro.');
-    }
+    if (!confirm("Voulez-vous annuler ce pointage ?")) return;
+    await supabase.from('attendance').delete().eq('event_id', eventId).eq('profile_id', profileId);
+    const newAtt = { ...attendance };
+    delete newAtt[profileId];
+    setAttendance(newAtt);
+    toast.success('Pointage remis à zéro.');
   };
 
   const togglePaid = async (profileId: string) => {
     const att = attendance[profileId];
     if (!att || !att.id) return;
-    
     const newStatus = !att.is_paid;
-    setAttendance({
-      ...attendance,
-      [profileId]: { ...att, is_paid: newStatus }
-    });
+    setAttendance({ ...attendance, [profileId]: { ...att, is_paid: newStatus } });
     await supabase.from('attendance').update({ is_paid: newStatus }).eq('id', att.id);
-    toast.success(newStatus ? 'Amende marquée comme payée.' : 'Amende marquée comme non payée.');
   };
 
   if (loading) return <div className="text-center mt-10 text-gray-400">Chargement...</div>;
@@ -131,24 +120,24 @@ function EventDetailContent() {
       <div>
         <h2 className="text-2xl font-bold text-white">{event?.title}</h2>
         <p className="text-sm text-purple-400">
-          {event?.type === 'celebration' ? '⛪ Messe (Amende: 300F)' : '🎼 Répétition (Amende: 100F)'}
+          {event?.type === 'celebration' ? '⛪ Messe' : '🎼 Répétition'}
         </p>
       </div>
 
-      {/* DEMANDES EN ATTENTE */}
       {demandesEnAttente.length > 0 && (
         <section className="bg-orange-500/10 border border-orange-500/30 p-4 rounded-2xl">
-          <h3 className="text-lg font-bold text-orange-400 mb-2">⚠️ Demandes en attente ({demandesEnAttente.length})</h3>
+          <h3 className="text-lg font-bold text-orange-400 mb-2">⚠️ Demandes en attente</h3>
           <div className="space-y-2">
             {demandesEnAttente.map(m => (
               <div key={m.id} className="flex flex-col gap-2 bg-black/20 p-3 rounded-xl">
                 <div>
                   <p className="font-bold">{m.first_name} {m.last_name}</p>
-                  <p className="text-xs text-gray-400 italic">" {attendance[m.id]?.request_reason || 'Pas de raison'} "</p>
+                  <p className="text-xs text-gray-400 italic">" {attendance[m.id]?.request_reason} "</p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => updateAttendance(m.id, 'absent')} className="flex-1 bg-red-500/20 text-red-400 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-red-500/30">Refuser (Amende)</button>
-                  <button onClick={() => updateAttendance(m.id, 'present')} className="flex-1 bg-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-emerald-500/30">Accepter (Justifié)</button>
+                  <button onClick={() => updateAttendance(m.id, 'absent')} className="flex-1 bg-red-500/20 text-red-400 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-red-500/30">Refuser</button>
+                  {/* 👇 On appelle updateAttendance avec sendNotification = true et le statut 'excused' */}
+                  <button onClick={() => updateAttendance(m.id, 'excused', true)} className="flex-1 bg-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-emerald-500/30">Accepter</button>
                 </div>
               </div>
             ))}
@@ -156,7 +145,6 @@ function EventDetailContent() {
         </section>
       )}
 
-      {/* POINTAGE */}
       <section>
         <h3 className="text-lg font-bold text-white mb-3 border-b border-white/10 pb-2">✅ Pointage & Amendes</h3>
         <div className="space-y-3">
@@ -170,32 +158,23 @@ function EventDetailContent() {
                 <div className="flex justify-between items-center mb-3">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-white">{membre.first_name} {membre.last_name}</span>
-                    {/* 👇 3. Bouton d'annulation explicite */}
                     {status && (
-                      <button 
-                        onClick={() => annulerPointage(membre.id)} 
-                        className="text-xs bg-red-500/10 text-red-400 hover:bg-red-500/20 px-2 py-1 rounded-md transition-colors"
-                        title="Annuler le pointage"
-                      >
-                        ✕ Annuler
-                      </button>
+                      <button onClick={() => annulerPointage(membre.id)} className="text-xs bg-red-500/10 text-red-400 hover:bg-red-500/20 px-2 py-1 rounded-md">✕ Annuler</button>
                     )}
                   </div>
-                  
                   {fee > 0 && (
-                    <button 
-                      onClick={() => togglePaid(membre.id)}
-                      className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${att.is_paid ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}
-                    >
+                    <button onClick={() => togglePaid(membre.id)} className={`px-3 py-1 rounded-full text-xs font-bold ${att.is_paid ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
                       {fee} F - {att.is_paid ? 'Payé ✅' : 'À payer ❌'}
                     </button>
                   )}
                 </div>
                 
+                {/* 👇 Les boutons de pointage */}
                 <div className="flex gap-2">
-                  <button onClick={() => updateAttendance(membre.id, 'present')} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${status === 'present' ? 'bg-emerald-600 text-white' : 'bg-white/5 text-gray-400'}`}>Présent</button>
-                  <button onClick={() => updateAttendance(membre.id, 'late')} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${status === 'late' ? 'bg-orange-600 text-white' : 'bg-white/5 text-gray-400'}`}>Retard</button>
-                  <button onClick={() => updateAttendance(membre.id, 'absent')} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${status === 'absent' ? 'bg-red-600 text-white' : 'bg-white/5 text-gray-400'}`}>Absent</button>
+                  <button onClick={() => updateAttendance(membre.id, 'present')} className={`flex-1 py-2 rounded-xl text-sm font-bold ${status === 'present' ? 'bg-emerald-600 text-white' : 'bg-white/5 text-gray-400'}`}>Présent</button>
+                  <button onClick={() => updateAttendance(membre.id, 'excused')} className={`flex-1 py-2 rounded-xl text-sm font-bold ${status === 'excused' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-400'}`}>Permission</button>
+                  <button onClick={() => updateAttendance(membre.id, 'late')} className={`flex-1 py-2 rounded-xl text-sm font-bold ${status === 'late' ? 'bg-orange-600 text-white' : 'bg-white/5 text-gray-400'}`}>Retard</button>
+                  <button onClick={() => updateAttendance(membre.id, 'absent')} className={`flex-1 py-2 rounded-xl text-sm font-bold ${status === 'absent' ? 'bg-red-600 text-white' : 'bg-white/5 text-gray-400'}`}>Absent</button>
                 </div>
               </div>
             );
