@@ -12,7 +12,7 @@ export default function ProfilPage() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
-  // 👇 Nouvel état pour les statistiques financières
+  // Statistiques financières
   const [stats, setStats] = useState({
     totalDue: 0, totalPaid: 0,
     absents: 0, lates: 0, excused: 0, presents: 0
@@ -63,11 +63,9 @@ export default function ProfilPage() {
           const currentYear = now.getFullYear();
 
           attendances.forEach(a => {
-            // Calcul global des finances (toutes les dettes non payées)
             if (!a.is_paid) totalDue += (a.fee || 0);
             else totalPaid += (a.fee || 0);
 
-            // Calcul des statistiques du mois en cours
             const eventDate = a.events?.start_at ? new Date(a.events.start_at) : new Date(a.created_at);
             
             if (eventDate.getMonth() === currentMonth && eventDate.getFullYear() === currentYear) {
@@ -169,7 +167,7 @@ export default function ProfilPage() {
             </p>
           </div>
 
-          {/* 👇 NOUVEAU BLOC : MA SITUATION */}
+          {/* BLOC : MA SITUATION */}
           <div className="mb-8 p-5 rounded-3xl bg-white/5 border border-white/10 backdrop-blur-md">
             <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-2">
               <h3 className="font-bold text-white">📊 Ma situation</h3>
@@ -190,7 +188,7 @@ export default function ProfilPage() {
                 <p className="text-lg font-bold text-red-400">{stats.absents}</p>
               </div>
               <div className="bg-black/20 rounded-xl p-2">
-                <p className="text-[10px] text-gray-400 uppercase">Permission</p>
+                <p className="text-[10px] text-gray-400 uppercase">Permis</p>
                 <p className="text-lg font-bold text-blue-400">{stats.excused}</p>
               </div>
             </div>
@@ -246,7 +244,7 @@ export default function ProfilPage() {
               </div>
             </form>
           ) : (
-            /* Mode Lecture (Infos contact) */
+            /* Mode Lecture */
             <div className="space-y-3">
               <div className="p-5 rounded-3xl bg-white/5 border border-white/10 flex justify-between items-center">
                 <div className="text-gray-400 text-sm">Email</div>
@@ -263,8 +261,8 @@ export default function ProfilPage() {
             </div>
           )}
 
-          {/* Bouton Admin */}
-          {profile.role === 'admin' && !isEditing && (
+          {/* 👇 Bouton Admin (avec prise en compte du super_admin) */}
+          {['admin', 'super_admin'].includes(profile.role) && !isEditing && (
             <button 
               onClick={() => router.push('/admin')} 
               className="w-full mt-6 bg-gradient-to-r from-emerald-600 to-teal-600 text-white p-4 rounded-3xl font-bold shadow-lg hover:shadow-emerald-500/25 transition-all flex items-center justify-center gap-2"

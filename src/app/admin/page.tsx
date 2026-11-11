@@ -21,7 +21,9 @@ async function AdminContent() {
   if (!user) redirect('/login');
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-  if (profile?.role !== 'admin') {
+  
+  // 👇 On autorise l'admin ET le super_admin
+  if (profile?.role !== 'admin' && profile?.role !== 'super_admin') {
     return (
       <div className="text-center p-8 bg-white/5 rounded-3xl border border-white/10 mt-10">
         <h1 className="text-2xl font-bold mb-2 text-red-400">Accès refusé 🚫</h1>
@@ -41,6 +43,7 @@ async function AdminContent() {
         <Link href="/accueil" className="text-sm bg-white/10 px-4 py-2 rounded-full hover:bg-white/20 transition-colors">Quitter</Link>
       </header>
 
+      {/* ... (Gardez tous les boutons de menu ici, ils sont inchangés) ... */}
       <div className="grid grid-cols-1 gap-4">
         <Link href="/admin/chants" className="p-6 rounded-3xl bg-gradient-to-r from-blue-600/20 to-cyan-600/20 border border-blue-500/30 hover:border-blue-400 transition-all flex items-center justify-between group">
           <div>
