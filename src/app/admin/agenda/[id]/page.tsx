@@ -24,32 +24,34 @@ function EventDetailContent() {
   const params = useParams();
   const eventId = params.id as string;
   const supabase = createClient();
+  const router = useRouter();
 
   const [event, setEvent] = useState<any>(null);
   const [membres, setMembres] = useState<any[]>([]);
   const [attendance, setAttendance] = useState<Record<string, any>>({}); 
   const [loading, setLoading] = useState(true);
 
+  const loadData = async () => {
+    if (!eventId) return;
+    
+    const { data: eventData } = await supabase.from('events').select('*').eq('id', eventId).single();
+    setEvent(eventData);
+
+    const { data: profiles } = await supabase.from('profiles').select('*').order('last_name');
+    setMembres(profiles || []);
+
+    const { data: att } = await supabase.from('attendance').select('*').eq('event_id', eventId);
+    
+    const attMap: Record<string, any> = {};
+    att?.forEach(a => { attMap[a.profile_id] = a; });
+    setAttendance(attMap);
+
+    setLoading(false);
+  };
+
   useEffect(() => {
-    async function loadData() {
-      if (!eventId) return;
-      
-      const { data: eventData } = await supabase.from('events').select('*').eq('id', eventId).single();
-      setEvent(eventData);
-
-      const { data: profiles } = await supabase.from('profiles').select('*').order('last_name');
-      setMembres(profiles || []);
-
-      const { data: att } = await supabase.from('attendance').select('*').eq('event_id', eventId);
-      
-      const attMap: Record<string, any> = {};
-      att?.forEach(a => { attMap[a.profile_id] = a; });
-      setAttendance(attMap);
-
-      setLoading(false);
-    }
     loadData();
-  }, [eventId, supabase]);
+  }, [eventId]); // 👈 Retiré "supabase" pour éviter les boucles infinies
 
   const calculerFrais = (status: string, eventType: string) => {
     if (status === 'present' || status === 'requested') return 0;
@@ -78,6 +80,7 @@ function EventDetailContent() {
       }
     }
     toast.success('Pointage mis à jour.');
+    loadData(); // 👈 On force le rechargement des données
   };
 
   const togglePaid = async (profileId: string) => {
@@ -91,11 +94,11 @@ function EventDetailContent() {
     });
     await supabase.from('attendance').update({ is_paid: newStatus }).eq('id', att.id);
     toast.success(newStatus ? 'Amende marquée comme payée.' : 'Amende marquée comme non payée.');
+    loadData(); // 👈 On force le rechargement des données
   };
 
   if (loading) return <div className="text-center mt-10 text-gray-400">Chargement...</div>;
 
-  // 👇 C'EST ICI QU'ON FILTRE LES DEMANDES
   const demandesEnAttente = membres.filter(m => attendance[m.id]?.status === 'requested');
 
   return (
@@ -103,11 +106,10 @@ function EventDetailContent() {
       <div>
         <h2 className="text-2xl font-bold text-white">{event?.title}</h2>
         <p className="text-sm text-purple-400">
-          {event?.type === 'celebration' ? '⛪ Messe (Amende absence: 300F)' : '🎼 Répétition (Amende absence: 100F)'}
+          {event?.type === 'celebration' ? '⛪ Messe (Amende: 300F)' : '🎼 Répétition (Amende: 100F)'}
         </p>
       </div>
 
-      {/* 👇 SECTION DES DEMANDES EN ATTENTE */}
       {demandesEnAttente.length > 0 && (
         <section className="bg-orange-500/10 border border-orange-500/30 p-4 rounded-2xl">
           <h3 className="text-lg font-bold text-orange-400 mb-2">⚠️ Demandes en attente ({demandesEnAttente.length})</h3>
@@ -119,8 +121,8 @@ function EventDetailContent() {
                   <p className="text-xs text-gray-400 italic">" {attendance[m.id]?.request_reason || 'Pas de raison'} "</p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => updateAttendance(m.id, 'absent')} className="flex-1 bg-red-500/20 text-red-400 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-red-500/30">Refuser (Amende)</button>
-                  <button onClick={() => updateAttendance(m.id, 'present')} className="flex-1 bg-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-emerald-500/30">Accepter (Justifié)</button>
+                  <button onClick={() => updateAttendance(m.id, 'absent')} className="flex-1 bg-red-500/20 text-red-400 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-red-500/30">Refuser</button>
+                  <button onClick={() => updateAttendance(m.id, 'present')} className="flex-1 bg-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-emerald-500/30">Accepter</button>
                 </div>
               </div>
             ))}
@@ -128,7 +130,6 @@ function EventDetailContent() {
         </section>
       )}
 
-      {/* SECTION POINTAGE */}
       <section>
         <h3 className="text-lg font-bold text-white mb-3 border-b border-white/10 pb-2">✅ Pointage & Amendes</h3>
         <div className="space-y-3">
