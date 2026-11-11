@@ -16,6 +16,8 @@ export default function AdminAgendaPage() {
   const [type, setType] = useState('repetition');
   const [startAt, setStartAt] = useState('');
   const [location, setLocation] = useState('');
+  const [notes, setNotes] = useState('');
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   
@@ -28,6 +30,7 @@ export default function AdminAgendaPage() {
   const [editType, setEditType] = useState('');
   const [editStartAt, setEditStartAt] = useState('');
   const [editLocation, setEditLocation] = useState('');
+  const [editNotes, setEditNotes] = useState('');
   
   // État pour la suppression
   const [deletingEvent, setDeletingEvent] = useState<any>(null);
@@ -44,51 +47,62 @@ export default function AdminAgendaPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    setMessage('');
+    setMessage('Upload en cours...');
 
     const { data: { user } } = await supabase.auth.getUser();
     const isoDate = new Date(startAt).toISOString();
+    let pdfUrl = null;
 
-    const { data: newEvent, error } = await supabase.from('events').insert({
-      title, type, start_at: isoDate, location, created_by: user?.id
-    }).select().single();
+    try {
+      if (pdfFile) {
+        const fileName = `programme-${Date.now()}.pdf`;
+        const { error: uploadError } = await supabase.storage.from('songs').upload(`programs/${fileName}`, pdfFile);
+        if (uploadError) throw new Error(`Erreur Upload : ${uploadError.message}`);
+        
+        const { data } = supabase.storage.from('songs').getPublicUrl(`programs/${fileName}`);
+        pdfUrl = data.publicUrl;
+      }
 
-    if (error) {
-      setMessage(`Erreur : ${error.message}`);
-    } else {
+      const { data: newEvent, error } = await supabase.from('events').insert({
+        title, type, start_at: isoDate, location, created_by: user?.id,
+        liturgy_notes: notes || null,
+        program_pdf_url: pdfUrl
+      }).select().single();
+
+      if (error) throw error;
+
       setMessage('Événement créé avec succès !');
       setEvents([...events, newEvent]);
-      setTitle(''); setStartAt(''); setLocation('');
+      setTitle(''); setStartAt(''); setLocation(''); setNotes(''); setPdfFile(null);
       setTimeout(() => router.push(`/admin/agenda/${newEvent.id}`), 1000);
+    } catch (error: any) {
+      setMessage(error.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
-  // 👇 Fonction pour ouvrir la modale d'édition avec les données pré-remplies
   const openEditModal = (event: any) => {
     setEditingEvent(event);
     setEditTitle(event.title);
     setEditType(event.type);
     setEditLocation(event.location || '');
+    setEditNotes(event.liturgy_notes || '');
     
-    // Formater la date pour l'input datetime-local (YYYY-MM-DDThh:mm)
     const dateObj = new Date(event.start_at);
     const tzOffset = dateObj.getTimezoneOffset() * 60000;
     const localISOTime = (new Date(dateObj.getTime() - tzOffset)).toISOString().slice(0, 16);
     setEditStartAt(localISOTime);
   };
 
-  // 👇 Fonction pour sauvegarder les modifications
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingEvent) return;
     
     const isoDate = new Date(editStartAt).toISOString();
     const { error } = await supabase.from('events').update({
-      title: editTitle,
-      type: editType,
-      start_at: isoDate,
-      location: editLocation
+      title: editTitle, type: editType, start_at: isoDate, location: editLocation,
+      liturgy_notes: editNotes || null
     }).eq('id', editingEvent.id);
 
     if (error) {
@@ -96,20 +110,15 @@ export default function AdminAgendaPage() {
     } else {
       toast.success('Événement modifié avec succès !');
       setEditingEvent(null);
-      loadEvents(); // Rafraîchit la liste
+      loadEvents();
     }
   };
 
-  // 👇 Fonction pour supprimer
   const handleDeleteEvent = async () => {
     if (!deletingEvent) return;
     const { error } = await supabase.from('events').delete().eq('id', deletingEvent.id);
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success('Événement supprimé.');
-      loadEvents();
-    }
+    if (error) toast.error(error.message);
+    else { toast.success('Événement supprimé.'); loadEvents(); }
   };
 
   return (
@@ -122,7 +131,7 @@ export default function AdminAgendaPage() {
       {/* FORMULAIRE DE CRÉATION */}
       <div className="bg-white/5 border border-white/10 rounded-2xl p-5 mb-8">
         <h2 className="text-lg font-bold mb-4 text-emerald-400">Créer un événement</h2>
-        {message && <div className="p-3 mb-4 rounded-xl text-sm bg-green-500/20 text-green-400">{message}</div>}
+        {message && <div className={`p-3 mb-4 rounded-xl text-sm ${message.includes('succès') ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>{message}</div>}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <input type="text" placeholder="Titre (ex: Messe du dimanche)" required value={title} onChange={e => setTitle(e.target.value)} className="w-full p-3 bg-white/5 border border-white/10 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" />
@@ -135,6 +144,13 @@ export default function AdminAgendaPage() {
 
           <input type="datetime-local" required value={startAt} onChange={e => setStartAt(e.target.value)} className="w-full p-3 bg-white/5 border border-white/10 rounded-xl [color-scheme:dark] outline-none focus:ring-2 focus:ring-emerald-500" />
           <input type="text" placeholder="Lieu" value={location} onChange={e => setLocation(e.target.value)} className="w-full p-3 bg-white/5 border border-white/10 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" />
+          
+          <textarea placeholder="Thème / Évangile du jour (ex: 26e dimanche du temps ordinaire...)" rows={3} value={notes} onChange={e => setNotes(e.target.value)} className="w-full p-3 bg-white/5 border border-white/10 rounded-xl resize-none outline-none focus:ring-2 focus:ring-emerald-500 text-sm"></textarea>
+
+          <div className="p-3 border border-white/10 rounded-xl bg-white/5">
+            <label className="text-xs text-blue-400 block mb-1">Programme de messe (PDF)</label>
+            <input type="file" accept=".pdf" onChange={e => setPdfFile(e.target.files?.[0] || null)} className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:bg-blue-500/10 file:text-blue-400" />
+          </div>
 
           <button type="submit" disabled={loading} className="w-full bg-emerald-600 p-3 rounded-xl font-bold disabled:opacity-50">
             {loading ? 'Création...' : 'Créer l\'événement'}
@@ -157,7 +173,6 @@ export default function AdminAgendaPage() {
               </span>
             </div>
             
-            {/* BOUTONS D'ACTION */}
             <div className="flex gap-2 mt-4 pt-3 border-t border-white/10">
               <Link href={`/admin/agenda/${event.id}`} className="flex-1 bg-emerald-600/20 text-emerald-400 text-center py-2 rounded-lg text-sm font-bold hover:bg-emerald-600/30 transition-colors">
                 Gérer
@@ -166,7 +181,7 @@ export default function AdminAgendaPage() {
                 ✏️ Modifier
               </button>
               <button onClick={() => setDeletingEvent(event)} className="flex-1 bg-red-600/20 text-red-400 text-center py-2 rounded-lg text-sm font-bold hover:bg-red-600/30 transition-colors">
-                🗑️ Supprimer
+                🗑️
               </button>
             </div>
           </div>
@@ -176,7 +191,7 @@ export default function AdminAgendaPage() {
       {/* MODALE DE MODIFICATION */}
       {editingEvent && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+          <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 w-full max-w-sm shadow-2xl h-[80vh] overflow-y-auto">
             <h3 className="text-xl font-bold text-white mb-4">Modifier l'événement</h3>
             <form onSubmit={handleEditSubmit} className="space-y-3">
               <input type="text" required value={editTitle} onChange={e => setEditTitle(e.target.value)} className="w-full p-3 bg-white/5 border border-white/10 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
@@ -188,25 +203,25 @@ export default function AdminAgendaPage() {
               </select>
 
               <input type="datetime-local" required value={editStartAt} onChange={e => setEditStartAt(e.target.value)} className="w-full p-3 bg-white/5 border border-white/10 rounded-xl [color-scheme:dark] outline-none focus:ring-2 focus:ring-blue-500" />
-              
               <input type="text" placeholder="Lieu" value={editLocation} onChange={e => setEditLocation(e.target.value)} className="w-full p-3 bg-white/5 border border-white/10 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
+              
+              <textarea placeholder="Thème / Évangile" rows={3} value={editNotes} onChange={e => setEditNotes(e.target.value)} className="w-full p-3 bg-white/5 border border-white/10 rounded-xl resize-none outline-none focus:ring-2 focus:ring-blue-500 text-sm"></textarea>
 
               <div className="flex gap-2 pt-2">
-                <button type="button" onClick={() => setEditingEvent(null)} className="flex-1 bg-white/10 p-3 rounded-xl font-medium hover:bg-white/20 transition-colors">Annuler</button>
-                <button type="submit" className="flex-1 bg-blue-600 p-3 rounded-xl font-bold hover:bg-blue-500 transition-colors">Enregistrer</button>
+                <button type="button" onClick={() => setEditingEvent(null)} className="flex-1 bg-white/10 p-3 rounded-xl font-medium">Annuler</button>
+                <button type="submit" className="flex-1 bg-blue-600 p-3 rounded-xl font-bold">Enregistrer</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* MODALE DE SUPPRESSION */}
       <ConfirmModal 
         isOpen={!!deletingEvent}
         onClose={() => setDeletingEvent(null)}
         onConfirm={handleDeleteEvent}
         title="Supprimer l'événement"
-        message={`Voulez-vous vraiment supprimer "${deletingEvent?.title}" ? Toutes les présences et le programme associés seront également effacés.`}
+        message={`Voulez-vous vraiment supprimer "${deletingEvent?.title}" ?`}
         isDestructive={true}
       />
     </div>
