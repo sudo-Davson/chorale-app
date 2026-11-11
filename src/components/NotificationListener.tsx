@@ -5,18 +5,25 @@ import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 
 export default function NotificationListener() {
-  const supabase = createClient();
+  // 👇 On affiche un petit point rouge temporaire pour être sûr que le composant est chargé
+  console.log("🟢 Le composant NotificationListener est monté !");
 
   useEffect(() => {
+    const supabase = createClient();
     let channel: any;
 
     async function setupRealtime() {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      
+      if (!user) {
+        console.log("🔴 Pas d'utilisateur connecté.");
+        return;
+      }
 
-      // On écoute les nouvelles notifications pour cet utilisateur
+      console.log("🔔 Écoute des notifications activée pour :", user.id);
+
       channel = supabase
-        .channel('user_notifications')
+        .channel(`user_notifs_${user.id}`) // Nom unique pour éviter les conflits
         .on(
           'postgres_changes',
           {
@@ -26,15 +33,17 @@ export default function NotificationListener() {
             filter: `profile_id=eq.${user.id}`,
           },
           (payload) => {
-            // On affiche le toast quand une notification arrive
+            console.log("🎉 Nouvelle notification reçue !", payload);
             toast(payload.new.title, {
               description: payload.new.message,
-              duration: 10000, // 10 secondes
+              duration: 10000,
               icon: '🔔',
             });
           }
         )
-        .subscribe();
+        .subscribe((status) => {
+          console.log("Statut de la connexion Realtime :", status);
+        });
     }
 
     setupRealtime();
@@ -42,7 +51,10 @@ export default function NotificationListener() {
     return () => {
       if (channel) supabase.removeChannel(channel);
     };
-  }, [supabase]);
+  }, []); // Tableau de dépendances vide pour ne lancer qu'une seule fois
 
-  return null; // Ce composant ne s'affiche pas visuellement
+  // 👇 On affiche un point visuel très discret sur la page pour confirmer
+  return (
+    <div className="fixed top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse" title="Notifications actives"></div>
+  );
 }
