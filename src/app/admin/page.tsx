@@ -7,11 +7,7 @@ import Link from 'next/link';
 export default function AdminPage() {
   return (
     <div className="pb-20 max-w-lg mx-auto p-6 min-h-screen bg-slate-950 text-white">
-      <Suspense fallback={
-        <div className="text-center p-8 text-emerald-400 animate-pulse mt-20">
-          Vérification des accès...
-        </div>
-      }>
+      <Suspense fallback={<div className="text-center p-8 text-emerald-400 animate-pulse mt-20">Vérification des accès...</div>}>
         <AdminContent />
       </Suspense>
     </div>
@@ -20,26 +16,17 @@ export default function AdminPage() {
 
 async function AdminContent() {
   await connection();
-
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  
   if (!user) redirect('/login');
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
   if (profile?.role !== 'admin') {
     return (
       <div className="text-center p-8 bg-white/5 rounded-3xl border border-white/10 mt-10">
         <h1 className="text-2xl font-bold mb-2 text-red-400">Accès refusé 🚫</h1>
         <p className="text-gray-400 mb-6">Vous devez être administrateur pour accéder à cette page.</p>
-        <Link href="/accueil" className="text-purple-400 underline hover:text-purple-300">
-          Retour à l'accueil
-        </Link>
+        <Link href="/accueil" className="text-purple-400 underline hover:text-purple-300">Retour à l'accueil</Link>
       </div>
     );
   }
@@ -48,14 +35,10 @@ async function AdminContent() {
     <>
       <header className="mt-4 mb-8 flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-400">
-            Espace Admin
-          </h1>
+          <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-400">Espace Admin</h1>
           <p className="text-gray-400 mt-1">Gestion de la chorale</p>
         </div>
-        <Link href="/accueil" className="text-sm bg-white/10 px-4 py-2 rounded-full hover:bg-white/20 transition-colors">
-          Quitter
-        </Link>
+        <Link href="/accueil" className="text-sm bg-white/10 px-4 py-2 rounded-full hover:bg-white/20 transition-colors">Quitter</Link>
       </header>
 
       <div className="grid grid-cols-1 gap-4">
@@ -67,6 +50,7 @@ async function AdminContent() {
           <span className="text-blue-500 group-hover:translate-x-1 transition-transform">→</span>
         </Link>
 
+        {/* 👇 VÉRIFIEZ BIEN CE LIEN : href="/admin/agenda" */}
         <Link href="/admin/agenda" className="p-6 rounded-3xl bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/30 hover:border-purple-400 transition-all flex items-center justify-between group">
           <div>
             <h2 className="text-xl font-bold text-white mb-1 group-hover:text-purple-400 transition-colors">📅 Gérer l'agenda</h2>
@@ -89,6 +73,14 @@ async function AdminContent() {
             <p className="text-sm text-gray-400">Nommer des administrateurs</p>
           </div>
           <span className="text-teal-500 group-hover:translate-x-1 transition-transform">→</span>
+        </Link>
+
+        <Link href="/admin/finances" className="p-6 rounded-3xl bg-gradient-to-r from-amber-600/20 to-yellow-600/20 border border-amber-500/30 hover:border-amber-400 transition-all flex items-center justify-between group">
+          <div>
+            <h2 className="text-xl font-bold text-white mb-1 group-hover:text-amber-400 transition-colors">💰 Gérer les finances</h2>
+            <p className="text-sm text-gray-400">Amendes, paiements et dettes</p>
+          </div>
+          <span className="text-amber-500 group-hover:translate-x-1 transition-transform">→</span>
         </Link>
       </div>
     </>
