@@ -43,7 +43,7 @@ function EventDetailContent() {
     const { data: profiles } = await supabase.from('profiles').select('*').order('last_name');
     setMembres(profiles || []);
 
-    // 3. Tous les chants disponibles
+    // 3. Tous les chants disponibles (pour le programme)
     const { data: songsData } = await supabase.from('songs').select('*').order('title');
     setAllSongs(songsData || []);
 
@@ -62,22 +62,20 @@ function EventDetailContent() {
 
   useEffect(() => { loadData(); }, [eventId]);
 
-  // --- GESTION DU PROGRAMME (CHANTS) ---
+  // --- GESTION DU PROGRAMME DES CHANTS ---
   const toggleSong = async (songId: string) => {
     if (selectedSongs.includes(songId)) {
-      // Retirer le chant
       await supabase.from('event_songs').delete().eq('event_id', eventId).eq('song_id', songId);
       setSelectedSongs(selectedSongs.filter(id => id !== songId));
       toast.success('Chant retiré du programme');
     } else {
-      // Ajouter le chant
       await supabase.from('event_songs').insert({ event_id: eventId, song_id: songId });
       setSelectedSongs([...selectedSongs, songId]);
       toast.success('Chant ajouté au programme');
     }
   };
 
-  // --- GESTION DES PRÉSENCES ---
+  // --- GESTION DES PRESENCES ---
   const calculerFrais = (status: string, eventType: string) => {
     if (status === 'present' || status === 'requested' || status === 'excused') return 0;
     if (status === 'late') return 50;
@@ -139,23 +137,27 @@ function EventDetailContent() {
         <p className="text-sm text-purple-400">{new Date(event?.start_at).toLocaleDateString('fr-FR')}</p>
       </div>
 
-      {/* SECTION PROGRAMME DES CHANTS */}
+      {/* 👇 SECTION PROGRAMME DES CHANTS */}
       <section className="bg-white/5 border border-white/10 p-5 rounded-3xl">
         <h3 className="text-lg font-bold text-purple-400 mb-3 border-b border-white/10 pb-2">📋 Programme des chants</h3>
         <p className="text-xs text-gray-400 mb-4">Cochez les chants qui seront interprétés lors de cet événement.</p>
+        
         <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
-          {allSongs.map(song => (
-            <label key={song.id} className="flex items-center gap-3 p-3 rounded-xl bg-black/20 border border-white/5 cursor-pointer hover:bg-white/5 transition-colors">
-              <input 
-                type="checkbox" 
-                checked={selectedSongs.includes(song.id)}
-                onChange={() => toggleSong(song.id)}
-                className="w-5 h-5 accent-purple-500 rounded"
-              />
-              <span className="font-medium text-sm">{song.title}</span>
-            </label>
-          ))}
-          {allSongs.length === 0 && <p className="text-gray-500 text-sm">Aucun chant dans la base.</p>}
+          {allSongs.length > 0 ? (
+            allSongs.map(song => (
+              <label key={song.id} className="flex items-center gap-3 p-3 rounded-xl bg-black/20 border border-white/5 cursor-pointer hover:bg-white/5 transition-colors">
+                <input 
+                  type="checkbox" 
+                  checked={selectedSongs.includes(song.id)}
+                  onChange={() => toggleSong(song.id)}
+                  className="w-5 h-5 accent-purple-500 rounded"
+                />
+                <span className="font-medium text-sm text-white">{song.title}</span>
+              </label>
+            ))
+          ) : (
+            <p className="text-gray-500 text-sm">Aucun chant dans la base de données.</p>
+          )}
         </div>
       </section>
 
@@ -167,7 +169,7 @@ function EventDetailContent() {
             {demandesEnAttente.map(m => (
               <div key={m.id} className="flex flex-col gap-2 bg-black/20 p-3 rounded-xl">
                 <div>
-                  <p className="font-bold">{m.first_name} {m.last_name}</p>
+                  <p className="font-bold text-white">{m.first_name} {m.last_name}</p>
                   <p className="text-xs text-gray-400 italic">" {attendance[m.id]?.request_reason} "</p>
                 </div>
                 <div className="flex gap-2">
