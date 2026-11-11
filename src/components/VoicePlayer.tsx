@@ -10,14 +10,13 @@ const VOIX_CONFIG: Record<string, { label: string, color: string, bg: string }> 
 };
 
 export default function VoicePlayer({ tracks, userVoice }: { tracks: any[], userVoice?: string }) {
-  // S'il y a une voix utilisateur, on la sélectionne par défaut. Sinon, on prend la 1ère dispo.
   const [activeVoice, setActiveVoice] = useState<string | null>(
     userVoice || (tracks.length > 0 ? tracks[0].voice : null)
   );
+  const [isLooping, setIsLooping] = useState(false);
 
   if (!tracks || tracks.length === 0) return null;
 
-  // On filtre les pistes à afficher
   const tracksAffichees = userVoice 
     ? tracks.filter(t => t.voice === userVoice) 
     : tracks;
@@ -38,7 +37,6 @@ export default function VoicePlayer({ tracks, userVoice }: { tracks: any[], user
         🎧 Entraînement {userVoice ? `(Voix : ${userVoice})` : 'par voix'}
       </h2>
       
-      {/* Boutons de sélection (affichés uniquement si l'utilisateur n'a pas de voix définie) */}
       {!userVoice && (
         <div className="grid grid-cols-2 gap-2 mb-4">
           {tracksAffichees.map(t => {
@@ -60,12 +58,22 @@ export default function VoicePlayer({ tracks, userVoice }: { tracks: any[], user
         </div>
       )}
 
-      {/* Lecteur audio */}
       {activeTrack && (
-        <div className="mt-2">
-          <audio key={activeTrack.audio_url} controls autoPlay className="w-full">
+        <div className="mt-2 flex items-center gap-3">
+          <audio key={activeTrack.audio_url} controls autoPlay loop={isLooping} className="w-full">
             <source src={activeTrack.audio_url} type="audio/mpeg" />
           </audio>
+          <button
+            onClick={() => setIsLooping(!isLooping)}
+            className={`p-3 rounded-2xl border flex-shrink-0 transition-colors ${
+              isLooping 
+                ? 'bg-purple-600 border-purple-500 text-white shadow-lg' 
+                : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+            }`}
+            title="Lire en boucle"
+          >
+            🔁
+          </button>
         </div>
       )}
     </div>
