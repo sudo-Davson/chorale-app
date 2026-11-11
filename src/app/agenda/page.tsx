@@ -29,10 +29,16 @@ async function ListeDonnees() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  
+  // 👇 On autorise l'admin ET le super_admin
+  const isAdmin = ['admin', 'super_admin'].includes(profile?.role);
+
   const { data: events } = await supabase
     .from('events')
     .select('*')
-    .order('start_at', { ascending: false }); // On récupère tout (passé et futur) pour les programmes
+    .order('start_at', { ascending: false });
 
-  return <AgendaTabs events={events || []} />;
+  // On passe aussi isAdmin à AgendaTabs et EventCard
+  return <AgendaTabs events={events || []} isAdmin={isAdmin} />;
 }

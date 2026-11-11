@@ -32,7 +32,9 @@ async function ListeAnnonces() {
   if (!user) redirect('/login');
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-  const isAdmin = profile?.role === 'admin';
+  
+  // 👇 On autorise l'admin ET le super_admin
+  const isAdmin = ['admin', 'super_admin'].includes(profile?.role);
 
   const { data: announcements } = await supabase
     .from('announcements')
