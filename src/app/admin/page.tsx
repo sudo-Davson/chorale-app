@@ -74,21 +74,12 @@ async function AdminContent() {
           <span className="text-teal-500 group-hover:translate-x-1 transition-transform">→</span>
         </Link>
 
-        {/* 👇 NOUVEAU BOUTON : Registre de présence */}
         <Link href="/admin/presences" className="p-6 rounded-3xl bg-gradient-to-r from-indigo-600/20 to-violet-600/20 border border-indigo-500/30 hover:border-indigo-400 transition-all flex items-center justify-between group">
           <div>
             <h2 className="text-xl font-bold text-white mb-1 group-hover:text-indigo-400 transition-colors">📋 Registre de présence</h2>
-            <p className="text-sm text-gray-400">Consulter les présences et amendes par mois</p>
+            <p className="text-sm text-gray-400">Consulter les présences et les amendes</p>
           </div>
           <span className="text-indigo-500 group-hover:translate-x-1 transition-transform">→</span>
-        </Link>
-
-        <Link href="/admin/finances" className="p-6 rounded-3xl bg-gradient-to-r from-amber-600/20 to-yellow-600/20 border border-amber-500/30 hover:border-amber-400 transition-all flex items-center justify-between group">
-          <div>
-            <h2 className="text-xl font-bold text-white mb-1 group-hover:text-amber-400 transition-colors">💰 Gérer les finances</h2>
-            <p className="text-sm text-gray-400">Amendes, paiements et dettes</p>
-          </div>
-          <span className="text-amber-500 group-hover:translate-x-1 transition-transform">→</span>
         </Link>
       </div>
     </>
