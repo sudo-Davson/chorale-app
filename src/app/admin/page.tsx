@@ -50,11 +50,10 @@ async function AdminContent() {
           <span className="text-blue-500 group-hover:translate-x-1 transition-transform">→</span>
         </Link>
 
-        {/* 👇 VÉRIFIEZ BIEN CE LIEN : href="/admin/agenda" */}
         <Link href="/admin/agenda" className="p-6 rounded-3xl bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/30 hover:border-purple-400 transition-all flex items-center justify-between group">
           <div>
             <h2 className="text-xl font-bold text-white mb-1 group-hover:text-purple-400 transition-colors">📅 Gérer l'agenda</h2>
-            <p className="text-sm text-gray-400">Créer une répétition ou un événement</p>
+            <p className="text-sm text-gray-400">Créer, modifier ou supprimer un événement</p>
           </div>
           <span className="text-purple-500 group-hover:translate-x-1 transition-transform">→</span>
         </Link>
@@ -73,6 +72,15 @@ async function AdminContent() {
             <p className="text-sm text-gray-400">Nommer des administrateurs</p>
           </div>
           <span className="text-teal-500 group-hover:translate-x-1 transition-transform">→</span>
+        </Link>
+
+        {/* 👇 NOUVEAU BOUTON : Registre de présence */}
+        <Link href="/admin/presences" className="p-6 rounded-3xl bg-gradient-to-r from-indigo-600/20 to-violet-600/20 border border-indigo-500/30 hover:border-indigo-400 transition-all flex items-center justify-between group">
+          <div>
+            <h2 className="text-xl font-bold text-white mb-1 group-hover:text-indigo-400 transition-colors">📋 Registre de présence</h2>
+            <p className="text-sm text-gray-400">Consulter les présences et amendes par mois</p>
+          </div>
+          <span className="text-indigo-500 group-hover:translate-x-1 transition-transform">→</span>
         </Link>
 
         <Link href="/admin/finances" className="p-6 rounded-3xl bg-gradient-to-r from-amber-600/20 to-yellow-600/20 border border-amber-500/30 hover:border-amber-400 transition-all flex items-center justify-between group">
