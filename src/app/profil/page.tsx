@@ -12,41 +12,83 @@ export default function ProfilPage() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
+  // 👇 Nouvel état pour les statistiques financières
+  const [stats, setStats] = useState({
+    totalDue: 0, totalPaid: 0,
+    absents: 0, lates: 0, excused: 0, presents: 0
+  });
+
   // États pour l'édition
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({
-    first_name: '',
-    last_name: '',
-    phone: '',
-    voice: ''
+    first_name: '', last_name: '', phone: '', voice: ''
   });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    async function fetchProfile() {
+    async function fetchData() {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (user) {
-        const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-        setProfile(data);
-        if (data) {
+        // 1. Récupérer le profil
+        const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+        setProfile(profileData);
+        
+        if (profileData) {
           setEditData({
-            first_name: data.first_name || '',
-            last_name: data.last_name || '',
-            phone: data.phone || '',
-            voice: data.voice || ''
+            first_name: profileData.first_name || '',
+            last_name: profileData.last_name || '',
+            phone: profileData.phone || '',
+            voice: profileData.voice || ''
           });
+        }
+
+        // 2. Récupérer les présences avec la date de l'événement
+        const { data: attendances } = await supabase
+          .from('attendance')
+          .select('*, events(start_at)')
+          .eq('profile_id', user.id);
+
+        if (attendances) {
+          let totalDue = 0;
+          let totalPaid = 0;
+          let absents = 0;
+          let lates = 0;
+          let excused = 0;
+          let presents = 0;
+
+          const now = new Date();
+          const currentMonth = now.getMonth();
+          const currentYear = now.getFullYear();
+
+          attendances.forEach(a => {
+            // Calcul global des finances (toutes les dettes non payées)
+            if (!a.is_paid) totalDue += (a.fee || 0);
+            else totalPaid += (a.fee || 0);
+
+            // Calcul des statistiques du mois en cours
+            const eventDate = a.events?.start_at ? new Date(a.events.start_at) : new Date(a.created_at);
+            
+            if (eventDate.getMonth() === currentMonth && eventDate.getFullYear() === currentYear) {
+              if (a.status === 'absent') absents++;
+              if (a.status === 'late') lates++;
+              if (a.status === 'excused') excused++;
+              if (a.status === 'present') presents++;
+            }
+          });
+
+          setStats({ totalDue, totalPaid, absents, lates, excused, presents });
         }
       }
       setLoading(false);
     }
-    fetchProfile();
+    fetchData();
   }, [supabase]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    router.refresh(); // 👈 Vide le cache de Next.js pour oublier la session
+    router.refresh();
     router.push('/login');
   };
 
@@ -83,6 +125,8 @@ export default function ProfilPage() {
       </div>
     );
   }
+
+  const moisActuel = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 
   return (
     <div className="pb-32 max-w-lg mx-auto p-6 min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 to-slate-950">
@@ -125,10 +169,48 @@ export default function ProfilPage() {
             </p>
           </div>
 
+          {/* 👇 NOUVEAU BLOC : MA SITUATION */}
+          <div className="mb-8 p-5 rounded-3xl bg-white/5 border border-white/10 backdrop-blur-md">
+            <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-2">
+              <h3 className="font-bold text-white">📊 Ma situation</h3>
+              <span className="text-xs text-gray-400 capitalize">{moisActuel}</span>
+            </div>
+            
+            <div className="grid grid-cols-4 gap-2 mb-4 text-center">
+              <div className="bg-black/20 rounded-xl p-2">
+                <p className="text-[10px] text-gray-400 uppercase">Présent</p>
+                <p className="text-lg font-bold text-emerald-400">{stats.presents}</p>
+              </div>
+              <div className="bg-black/20 rounded-xl p-2">
+                <p className="text-[10px] text-gray-400 uppercase">Retard</p>
+                <p className="text-lg font-bold text-orange-400">{stats.lates}</p>
+              </div>
+              <div className="bg-black/20 rounded-xl p-2">
+                <p className="text-[10px] text-gray-400 uppercase">Absent</p>
+                <p className="text-lg font-bold text-red-400">{stats.absents}</p>
+              </div>
+              <div className="bg-black/20 rounded-xl p-2">
+                <p className="text-[10px] text-gray-400 uppercase">Permission</p>
+                <p className="text-lg font-bold text-blue-400">{stats.excused}</p>
+              </div>
+            </div>
+
+            <div className={`p-4 rounded-xl flex justify-between items-center ${stats.totalDue > 0 ? 'bg-red-500/20 border border-red-500/30' : 'bg-emerald-500/20 border border-emerald-500/30'}`}>
+              <div>
+                <p className={`text-xs font-bold uppercase ${stats.totalDue > 0 ? 'text-red-400' : 'text-emerald-400'}`}>Total à payer</p>
+                <p className="text-2xl font-black text-white">{stats.totalDue} F</p>
+              </div>
+              {stats.totalDue === 0 && <span className="text-3xl">✅</span>}
+            </div>
+            
+            {stats.totalPaid > 0 && (
+              <p className="text-xs text-gray-500 text-right mt-2">Déjà payé : {stats.totalPaid} F</p>
+            )}
+          </div>
+
           {/* Mode Édition */}
           {isEditing ? (
             <form onSubmit={handleSave} className="space-y-4 bg-white/5 p-6 rounded-3xl border border-white/10">
-              
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-gray-400 ml-1">Prénom</label>
@@ -142,23 +224,12 @@ export default function ProfilPage() {
 
               <div>
                 <label className="text-xs text-gray-400 ml-1">Téléphone</label>
-                <input 
-                  type="text" 
-                  inputMode="tel" 
-                  value={editData.phone} 
-                  onChange={e => setEditData({...editData, phone: e.target.value})} 
-                  className="w-full mt-1 p-3 bg-slate-900 border border-white/10 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-white" 
-                  placeholder="Ex: 0612345678" 
-                />
+                <input type="text" inputMode="tel" value={editData.phone} onChange={e => setEditData({...editData, phone: e.target.value})} className="w-full mt-1 p-3 bg-slate-900 border border-white/10 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-white" placeholder="Ex: 0612345678" />
               </div>
 
               <div>
                 <label className="text-xs text-gray-400 ml-1">Votre voix</label>
-                <select 
-                  value={editData.voice} 
-                  onChange={e => setEditData({...editData, voice: e.target.value})} 
-                  className="w-full mt-1 p-3 bg-slate-900 border border-white/10 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none appearance-none text-white"
-                >
+                <select value={editData.voice} onChange={e => setEditData({...editData, voice: e.target.value})} className="w-full mt-1 p-3 bg-slate-900 border border-white/10 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none appearance-none text-white">
                   <option value="" style={{ color: 'black', backgroundColor: 'white' }}>-- Choisir --</option>
                   <option value="soprano" style={{ color: 'black', backgroundColor: 'white' }}>Soprano</option>
                   <option value="alto" style={{ color: 'black', backgroundColor: 'white' }}>Alto</option>
@@ -175,18 +246,16 @@ export default function ProfilPage() {
               </div>
             </form>
           ) : (
-            /* Mode Lecture */
+            /* Mode Lecture (Infos contact) */
             <div className="space-y-3">
               <div className="p-5 rounded-3xl bg-white/5 border border-white/10 flex justify-between items-center">
                 <div className="text-gray-400 text-sm">Email</div>
                 <div className="font-medium text-white text-sm">{profile.email}</div>
               </div>
-              
               <div className="p-5 rounded-3xl bg-white/5 border border-white/10 flex justify-between items-center">
                 <div className="text-gray-400 text-sm">Téléphone</div>
                 <div className="font-medium text-white text-sm">{profile.phone || 'Non renseigné'}</div>
               </div>
-
               <div className="p-5 rounded-3xl bg-white/5 border border-white/10 flex justify-between items-center">
                 <div className="text-gray-400 text-sm">Rôle</div>
                 <div className="font-medium text-white capitalize text-sm">{profile.role}</div>
@@ -204,7 +273,7 @@ export default function ProfilPage() {
             </button>
           )}
           
-          <div className="mt-10 p-5 rounded-3xl border border-white/5 bg-slate-900/50 text-center">
+          <div className="mt-8 p-5 rounded-3xl border border-white/5 bg-slate-900/50 text-center">
             <p className="text-xs text-gray-500">Chorale App - Version 1.0.0</p>
           </div>
         </>
