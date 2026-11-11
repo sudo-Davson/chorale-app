@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { connection } from 'next/server';
 import BottomNav from '@/components/BottomNav';
 import NotificationListener from '@/components/NotificationListener';
-import NotificationBadge from '@/components/NotificationBadge'; // 👈 Nouvel import
+import NotificationBadge from '@/components/NotificationBadge';
 
 export default function AccueilPage() {
   return (
@@ -24,11 +24,16 @@ async function AccueilContent() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-  const now = new Date().toISOString();
+  // 👇 OPTIMISATION : On lance les 3 requêtes en parallèle
+  const [profileRes, eventRes, announcementRes] = await Promise.all([
+    supabase.from('profiles').select('*').eq('id', user.id).single(),
+    supabase.from('events').select('*').gte('start_at', new Date().toISOString()).order('start_at', { ascending: true }).limit(1).maybeSingle(),
+    supabase.from('announcements').select('*').order('created_at', { ascending: false }).limit(1).maybeSingle()
+  ]);
 
-  const { data: nextEvent } = await supabase.from('events').select('*').gte('start_at', now).order('start_at', { ascending: true }).limit(1).maybeSingle();
-  const { data: lastAnnouncement } = await supabase.from('announcements').select('*').order('created_at', { ascending: false }).limit(1).maybeSingle();
+  const profile = profileRes.data;
+  const nextEvent = eventRes.data;
+  const lastAnnouncement = announcementRes.data;
 
   return (
     <>
@@ -38,7 +43,6 @@ async function AccueilContent() {
           <h1 className="text-2xl font-bold text-white">{profile?.first_name || 'Choriste'}</h1>
         </div>
         
-        {/* 👇 On ajoute la cloche et le cercle de profil */}
         <div className="flex items-center gap-3">
           <NotificationBadge />
           <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center text-xl shadow-lg border border-white/20 text-white font-bold">
