@@ -3,27 +3,21 @@
 import { useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
+import { useRouter } from 'next/navigation'; // 👈 Import du router
 
 export default function NotificationListener() {
-  // 👇 On affiche un petit point rouge temporaire pour être sûr que le composant est chargé
-  console.log("🟢 Le composant NotificationListener est monté !");
+  const supabase = createClient();
+  const router = useRouter();
 
   useEffect(() => {
-    const supabase = createClient();
     let channel: any;
 
     async function setupRealtime() {
       const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        console.log("🔴 Pas d'utilisateur connecté.");
-        return;
-      }
-
-      console.log("🔔 Écoute des notifications activée pour :", user.id);
+      if (!user) return;
 
       channel = supabase
-        .channel(`user_notifs_${user.id}`) // Nom unique pour éviter les conflits
+        .channel(`user_notifs_${user.id}`)
         .on(
           'postgres_changes',
           {
@@ -33,17 +27,17 @@ export default function NotificationListener() {
             filter: `profile_id=eq.${user.id}`,
           },
           (payload) => {
-            console.log("🎉 Nouvelle notification reçue !", payload);
+            // 1. On affiche quand même le toast en direct
             toast(payload.new.title, {
               description: payload.new.message,
-              duration: 10000,
+              duration: 5000,
               icon: '🔔',
             });
+            // 2. On force Next.js à recharger les données pour mettre à jour le badge
+            router.refresh(); 
           }
         )
-        .subscribe((status) => {
-          console.log("Statut de la connexion Realtime :", status);
-        });
+        .subscribe();
     }
 
     setupRealtime();
@@ -51,10 +45,7 @@ export default function NotificationListener() {
     return () => {
       if (channel) supabase.removeChannel(channel);
     };
-  }, []); // Tableau de dépendances vide pour ne lancer qu'une seule fois
+  }, [supabase, router]);
 
-  // 👇 On affiche un point visuel très discret sur la page pour confirmer
-  return (
-    <div className="fixed top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse" title="Notifications actives"></div>
-  );
+  return null;
 }
