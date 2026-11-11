@@ -1,29 +1,80 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 
-export default function ChoristeRequestForm({ eventId, eventType, existingStatus, existingReason }: { 
-  eventId: string, eventType: string, existingStatus?: string, existingReason?: string 
+export default function ChoristeRequestForm({ 
+  eventId, 
+  eventType, 
+  existingStatus, 
+  existingReason 
+}: { 
+  eventId: string, 
+  eventType: string, 
+  existingStatus?: string, 
+  existingReason?: string 
 }) {
   const supabase = createClient();
   const [reason, setReason] = useState(existingReason || '');
   const [loading, setLoading] = useState(false);
   const [isRequested, setIsRequested] = useState(existingStatus === 'requested');
+  const [attendanceId, setAttendanceId] = useState<string | null>(null);
+
+  // Au chargement, on vérifie si une demande existe déjà pour récupérer son ID
+  useEffect(() => {
+    async function checkExisting() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      const { data } = await supabase
+        .from('attendance')
+        .select('id, status')
+        .eq('event_id', eventId)
+        .eq('profile_id', user.id)
+        .maybeSingle();
+
+      if (data) {
+        setAttendanceId(data.id);
+        if (data.status === 'requested') setIsRequested(true);
+      }
+    }
+    checkExisting();
+  }, [eventId, supabase]);
 
   async function handleRequest(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
 
-    const { error } = await supabase.from('attendance').upsert({
-      event_id: eventId,
-      profile_id: user?.id,
-      status: 'requested',
-      request_reason: reason,
-      fee: 0
-    }, { onConflict: 'event_id, profile_id' });
+    if (!user) {
+      toast.error("Vous devez être connecté.");
+      setLoading(false);
+      return;
+    }
+
+    let error;
+
+    if (attendanceId) {
+      // Si une ligne existe déjà, on la met à jour
+      const { error: updateError } = await supabase
+        .from('attendance')
+        .update({ status: 'requested', request_reason: reason, fee: 0 })
+        .eq('id', attendanceId);
+      error = updateError;
+    } else {
+      // Sinon, on insère une nouvelle ligne
+      const { error: insertError } = await supabase
+        .from('attendance')
+        .insert({
+          event_id: eventId,
+          profile_id: user.id,
+          status: 'requested',
+          request_reason: reason,
+          fee: 0
+        });
+      error = insertError;
+    }
 
     if (error) {
       toast.error(error.message);
