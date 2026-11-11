@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import Link from 'next/link';
@@ -24,7 +24,6 @@ function EventDetailContent() {
   const params = useParams();
   const eventId = params.id as string;
   const supabase = createClient();
-  const router = useRouter();
 
   const [event, setEvent] = useState<any>(null);
   const [membres, setMembres] = useState<any[]>([]);
@@ -51,7 +50,7 @@ function EventDetailContent() {
 
   useEffect(() => {
     loadData();
-  }, [eventId]); // 👈 Retiré "supabase" pour éviter les boucles infinies
+  }, [eventId]);
 
   const calculerFrais = (status: string, eventType: string) => {
     if (status === 'present' || status === 'requested') return 0;
@@ -61,6 +60,21 @@ function EventDetailContent() {
   };
 
   const updateAttendance = async (profileId: string, status: string) => {
+    const currentStatus = attendance[profileId]?.status;
+
+    // 👇 1. Si on clique sur le bouton déjà actif, on annule le pointage
+    if (currentStatus === status) {
+      const { error } = await supabase.from('attendance').delete().eq('event_id', eventId).eq('profile_id', profileId);
+      if (!error) {
+        const newAtt = { ...attendance };
+        delete newAtt[profileId];
+        setAttendance(newAtt);
+        toast.info('Pointage annulé.');
+      }
+      return;
+    }
+
+    // 2. Sinon, on met à jour ou on insère
     const fee = calculerFrais(status, event.type);
     const currentAtt = attendance[profileId];
 
@@ -80,7 +94,19 @@ function EventDetailContent() {
       }
     }
     toast.success('Pointage mis à jour.');
-    loadData(); // 👈 On force le rechargement des données
+  };
+
+  // 👇 2. Fonction pour annuler explicitement avec le bouton ✕
+  const annulerPointage = async (profileId: string) => {
+    if (!confirm("Voulez-vous annuler ce pointage et remettre le membre à zéro ?")) return;
+    
+    const { error } = await supabase.from('attendance').delete().eq('event_id', eventId).eq('profile_id', profileId);
+    if (!error) {
+      const newAtt = { ...attendance };
+      delete newAtt[profileId];
+      setAttendance(newAtt);
+      toast.success('Pointage remis à zéro.');
+    }
   };
 
   const togglePaid = async (profileId: string) => {
@@ -94,7 +120,6 @@ function EventDetailContent() {
     });
     await supabase.from('attendance').update({ is_paid: newStatus }).eq('id', att.id);
     toast.success(newStatus ? 'Amende marquée comme payée.' : 'Amende marquée comme non payée.');
-    loadData(); // 👈 On force le rechargement des données
   };
 
   if (loading) return <div className="text-center mt-10 text-gray-400">Chargement...</div>;
@@ -110,6 +135,7 @@ function EventDetailContent() {
         </p>
       </div>
 
+      {/* DEMANDES EN ATTENTE */}
       {demandesEnAttente.length > 0 && (
         <section className="bg-orange-500/10 border border-orange-500/30 p-4 rounded-2xl">
           <h3 className="text-lg font-bold text-orange-400 mb-2">⚠️ Demandes en attente ({demandesEnAttente.length})</h3>
@@ -121,8 +147,8 @@ function EventDetailContent() {
                   <p className="text-xs text-gray-400 italic">" {attendance[m.id]?.request_reason || 'Pas de raison'} "</p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => updateAttendance(m.id, 'absent')} className="flex-1 bg-red-500/20 text-red-400 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-red-500/30">Refuser</button>
-                  <button onClick={() => updateAttendance(m.id, 'present')} className="flex-1 bg-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-emerald-500/30">Accepter</button>
+                  <button onClick={() => updateAttendance(m.id, 'absent')} className="flex-1 bg-red-500/20 text-red-400 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-red-500/30">Refuser (Amende)</button>
+                  <button onClick={() => updateAttendance(m.id, 'present')} className="flex-1 bg-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-emerald-500/30">Accepter (Justifié)</button>
                 </div>
               </div>
             ))}
@@ -130,6 +156,7 @@ function EventDetailContent() {
         </section>
       )}
 
+      {/* POINTAGE */}
       <section>
         <h3 className="text-lg font-bold text-white mb-3 border-b border-white/10 pb-2">✅ Pointage & Amendes</h3>
         <div className="space-y-3">
@@ -141,7 +168,20 @@ function EventDetailContent() {
             return (
               <div key={membre.id} className="p-4 rounded-2xl bg-white/5 border border-white/10">
                 <div className="flex justify-between items-center mb-3">
-                  <span className="font-bold text-white">{membre.first_name} {membre.last_name}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-white">{membre.first_name} {membre.last_name}</span>
+                    {/* 👇 3. Bouton d'annulation explicite */}
+                    {status && (
+                      <button 
+                        onClick={() => annulerPointage(membre.id)} 
+                        className="text-xs bg-red-500/10 text-red-400 hover:bg-red-500/20 px-2 py-1 rounded-md transition-colors"
+                        title="Annuler le pointage"
+                      >
+                        ✕ Annuler
+                      </button>
+                    )}
+                  </div>
+                  
                   {fee > 0 && (
                     <button 
                       onClick={() => togglePaid(membre.id)}
