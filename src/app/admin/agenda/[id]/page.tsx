@@ -49,15 +49,12 @@ function EventDetailContent() {
       setLoading(false);
     }
     loadData();
-  }, [eventId]);
+  }, [eventId, supabase]);
 
-  // Calcul automatique de l'amende
   const calculerFrais = (status: string, eventType: string) => {
     if (status === 'present' || status === 'requested') return 0;
     if (status === 'late') return 50;
-    if (status === 'absent') {
-      return eventType === 'celebration' ? 300 : 100;
-    }
+    if (status === 'absent') return eventType === 'celebration' ? 300 : 100;
     return 0;
   };
 
@@ -65,7 +62,6 @@ function EventDetailContent() {
     const fee = calculerFrais(status, event.type);
     const currentAtt = attendance[profileId];
 
-    // Mise à jour optimiste
     setAttendance({
       ...attendance,
       [profileId]: { ...currentAtt, status, fee, is_paid: currentAtt?.is_paid || false }
@@ -99,6 +95,7 @@ function EventDetailContent() {
 
   if (loading) return <div className="text-center mt-10 text-gray-400">Chargement...</div>;
 
+  // 👇 C'EST ICI QU'ON FILTRE LES DEMANDES
   const demandesEnAttente = membres.filter(m => attendance[m.id]?.status === 'requested');
 
   return (
@@ -110,20 +107,20 @@ function EventDetailContent() {
         </p>
       </div>
 
-      {/* Section Demandes de permission */}
+      {/* 👇 SECTION DES DEMANDES EN ATTENTE */}
       {demandesEnAttente.length > 0 && (
         <section className="bg-orange-500/10 border border-orange-500/30 p-4 rounded-2xl">
           <h3 className="text-lg font-bold text-orange-400 mb-2">⚠️ Demandes en attente ({demandesEnAttente.length})</h3>
           <div className="space-y-2">
             {demandesEnAttente.map(m => (
-              <div key={m.id} className="flex justify-between items-center bg-black/20 p-3 rounded-xl">
+              <div key={m.id} className="flex flex-col gap-2 bg-black/20 p-3 rounded-xl">
                 <div>
                   <p className="font-bold">{m.first_name} {m.last_name}</p>
                   <p className="text-xs text-gray-400 italic">" {attendance[m.id]?.request_reason || 'Pas de raison'} "</p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => updateAttendance(m.id, 'absent')} className="bg-red-500 text-white px-3 py-1 rounded-lg text-sm font-bold">Refuser</button>
-                  <button onClick={() => updateAttendance(m.id, 'present')} className="bg-emerald-500 text-white px-3 py-1 rounded-lg text-sm font-bold">Accepter</button>
+                  <button onClick={() => updateAttendance(m.id, 'absent')} className="flex-1 bg-red-500/20 text-red-400 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-red-500/30">Refuser (Amende)</button>
+                  <button onClick={() => updateAttendance(m.id, 'present')} className="flex-1 bg-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-emerald-500/30">Accepter (Justifié)</button>
                 </div>
               </div>
             ))}
@@ -131,7 +128,7 @@ function EventDetailContent() {
         </section>
       )}
 
-      {/* Section Pointage */}
+      {/* SECTION POINTAGE */}
       <section>
         <h3 className="text-lg font-bold text-white mb-3 border-b border-white/10 pb-2">✅ Pointage & Amendes</h3>
         <div className="space-y-3">
