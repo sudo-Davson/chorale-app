@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import ChoristeRequestForm from '@/components/ChoristeRequestForm'; // 👈 On va créer ce composant
+import ChoristeRequestForm from '@/components/ChoristeRequestForm';
 
 export const instant = false;
 
@@ -18,7 +18,6 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
     .select('songs(id, title, composer)')
     .eq('event_id', id);
 
-  // Récupérer le statut de présence du choriste
   const { data: myAttendance } = await supabase
     .from('attendance')
     .select('*')
@@ -63,7 +62,6 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
         )}
       </section>
 
-      {/* Composant de demande d'absence */}
       <ChoristeRequestForm 
         eventId={id} 
         eventType={event.type} 
