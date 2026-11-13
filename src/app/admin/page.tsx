@@ -22,11 +22,12 @@ async function AdminContent() {
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
   
-  const isAdmin = ['admin', 'super_admin'].includes(profile?.role);
+  const isSuperAdmin = profile?.role === 'super_admin';
+  const isAdminBureau = profile?.role === 'admin';
   const isMaitre = profile?.role === 'maitre_choeur';
 
-  // Si ce n'est ni un admin, ni un maître de chœur, on bloque l'accès
-  if (!isAdmin && !isMaitre) {
+  // Si ce n'est aucun de ces 3 rôles, on bloque
+  if (!isSuperAdmin && !isAdminBureau && !isMaitre) {
     return (
       <div className="text-center p-8 bg-white/5 rounded-3xl border border-white/10 mt-10">
         <h1 className="text-2xl font-bold mb-2 text-red-400">Accès refusé 🚫</h1>
@@ -41,7 +42,7 @@ async function AdminContent() {
       <header className="mt-4 mb-8 flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-400">
-            {isMaitre ? 'Espace Maître de chœur' : 'Espace Admin'}
+            {isMaitre && !isSuperAdmin ? 'Espace Musical' : isAdminBureau && !isSuperAdmin ? 'Espace Bureau' : 'Espace Direction'}
           </h1>
           <p className="text-gray-400 mt-1">Gestion de la chorale</p>
         </div>
@@ -50,18 +51,17 @@ async function AdminContent() {
 
       <div className="grid grid-cols-1 gap-4">
         
-        {/* 👇 BOUTON MAÎTRE DE CHŒUR (visible par les admins ET les maîtres) */}
-        <Link href="/admin/soumissions" className="p-6 rounded-3xl bg-gradient-to-r from-pink-600/20 to-rose-600/20 border border-pink-500/30 hover:border-pink-400 transition-all flex items-center justify-between group">
-          <div>
-            <h2 className="text-xl font-bold text-white mb-1 group-hover:text-pink-400 transition-colors">🎙️ Soumissions Audio</h2>
-            <p className="text-sm text-gray-400">Écouter et valider les prestations des choristes</p>
-          </div>
-          <span className="text-pink-500 group-hover:translate-x-1 transition-transform">→</span>
-        </Link>
-
-        {/* 👇 BOUTONS ADMIN (visibles uniquement par les admins) */}
-        {isAdmin && (
+        {/* 👇 SECTION MUSIQUE (Visible par le Maître de chœur ET le Super Admin) */}
+        {(isMaitre || isSuperAdmin) && (
           <>
+            <Link href="/admin/soumissions" className="p-6 rounded-3xl bg-gradient-to-r from-pink-600/20 to-rose-600/20 border border-pink-500/30 hover:border-pink-400 transition-all flex items-center justify-between group">
+              <div>
+                <h2 className="text-xl font-bold text-white mb-1 group-hover:text-pink-400 transition-colors">🎙️ Soumissions Audio</h2>
+                <p className="text-sm text-gray-400">Écouter et valider les prestations</p>
+              </div>
+              <span className="text-pink-500 group-hover:translate-x-1 transition-transform">→</span>
+            </Link>
+
             <Link href="/admin/chants" className="p-6 rounded-3xl bg-gradient-to-r from-blue-600/20 to-cyan-600/20 border border-blue-500/30 hover:border-blue-400 transition-all flex items-center justify-between group">
               <div>
                 <h2 className="text-xl font-bold text-white mb-1 group-hover:text-blue-400 transition-colors">🎼 Gérer les chants</h2>
@@ -69,7 +69,12 @@ async function AdminContent() {
               </div>
               <span className="text-blue-500 group-hover:translate-x-1 transition-transform">→</span>
             </Link>
+          </>
+        )}
 
+        {/* 👇 SECTION BUREAU (Visible par l'Admin Bureau ET le Super Admin) */}
+        {(isAdminBureau || isSuperAdmin) && (
+          <>
             <Link href="/admin/agenda" className="p-6 rounded-3xl bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/30 hover:border-purple-400 transition-all flex items-center justify-between group">
               <div>
                 <h2 className="text-xl font-bold text-white mb-1 group-hover:text-purple-400 transition-colors">📅 Gérer l'agenda</h2>
