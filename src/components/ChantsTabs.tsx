@@ -5,15 +5,28 @@ import Link from 'next/link';
 
 export default function ChantsTabs({ songs, userVoice }: { songs: any[], userVoice?: string }) {
   const [activeTab, setActiveTab] = useState<'audio' | 'partitions'>('audio');
+  const [searchTerm, setSearchTerm] = useState(''); // 👈 État pour la recherche
 
-  // Filtrage pour l'onglet Audio (seulement les chants qui ont la voix de l'utilisateur)
-  const songsAudio = songs.filter(song => {
-    if (!userVoice) return true;
+  // 1. Filtrage de base (par voix pour l'audio, par PDF pour les partitions)
+  const songsAudioBase = songs.filter(song => {
+    if (!userVoice) return true; // Si pas de voix définie, on montre tout
     return song.voice_tracks?.some((track: any) => track.voice === userVoice);
   });
 
-  // Filtrage pour l'onglet Partitions (seulement les chants qui ont un PDF)
-  const songsPartitions = songs.filter(song => song.pdf_url);
+  const songsPartitionsBase = songs.filter(song => song.pdf_url);
+
+  // 2. Filtrage par recherche (Titre ou Compositeur)
+  const filterBySearch = (list: any[]) => {
+    if (!searchTerm) return list;
+    const term = searchTerm.toLowerCase();
+    return list.filter(song => 
+      song.title.toLowerCase().includes(term) || 
+      (song.composer && song.composer.toLowerCase().includes(term))
+    );
+  };
+
+  const songsAudio = filterBySearch(songsAudioBase);
+  const songsPartitions = filterBySearch(songsPartitionsBase);
 
   const gradients = [
     'from-pink-500 to-rose-500', 'from-purple-500 to-indigo-500', 'from-blue-500 to-cyan-500',
@@ -22,6 +35,20 @@ export default function ChantsTabs({ songs, userVoice }: { songs: any[], userVoi
 
   return (
     <>
+      {/* 👇 BARRE DE RECHERCHE */}
+      <div className="relative mb-6">
+        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+          <span className="text-gray-400 text-lg">🔍</span>
+        </div>
+        <input
+          type="text"
+          placeholder="Rechercher un chant ou un auteur..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+        />
+      </div>
+
       {/* Onglets */}
       <div className="flex bg-white/5 p-1 rounded-2xl mb-6 border border-white/10">
         <button
@@ -30,7 +57,7 @@ export default function ChantsTabs({ songs, userVoice }: { songs: any[], userVoi
             activeTab === 'audio' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'
           }`}
         >
-          🎵 Audio {userVoice ? `(${userVoice})` : ''}
+          🎵 Ma voix {userVoice ? `(${userVoice})` : ''}
         </button>
         <button
           onClick={() => setActiveTab('partitions')}
@@ -60,7 +87,9 @@ export default function ChantsTabs({ songs, userVoice }: { songs: any[], userVoi
             ))
           ) : (
             <div className="text-center p-8 bg-white/5 rounded-3xl border border-white/10 text-gray-400">
-              Aucun chant disponible pour votre voix.
+              {searchTerm 
+                ? `Aucun chant trouvé pour "${searchTerm}".`
+                : "Aucun chant disponible pour votre voix."}
             </div>
           )}
         </div>
@@ -84,7 +113,9 @@ export default function ChantsTabs({ songs, userVoice }: { songs: any[], userVoi
             ))
           ) : (
             <div className="text-center p-8 bg-white/5 rounded-3xl border border-white/10 text-gray-400">
-              Aucune partition n'est disponible pour le moment.
+              {searchTerm 
+                ? `Aucune partition trouvée pour "${searchTerm}".`
+                : "Aucune partition n'est disponible pour le moment."}
             </div>
           )}
         </div>
