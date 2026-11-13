@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import VoicePlayer from '@/components/VoicePlayer';
 import GlobalAudioPlayer from '@/components/GlobalAudioPlayer';
+import AudioRecorder from '@/components/AudioRecorder'; // 👈 Import
 
 export const instant = false;
 
@@ -30,9 +31,7 @@ export default async function ChantDetailPage({ params }: { params: Promise<{ id
   return (
     <div className="pb-32 max-w-lg mx-auto p-6 min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 to-slate-950">
       <header className="mt-4 mb-8">
-        <Link href="/chants" className="text-sm text-gray-400 hover:text-white mb-4 inline-block">
-          ← Retour
-        </Link>
+        <Link href="/chants" className="text-sm text-gray-400 hover:text-white mb-4 inline-block">← Retour</Link>
         <h1 className="text-3xl font-extrabold text-white">{song.title}</h1>
         <p className="text-purple-400 font-medium mt-1">{song.composer || 'Auteur inconnu'}</p>
       </header>
@@ -58,12 +57,15 @@ export default async function ChantDetailPage({ params }: { params: Promise<{ id
 
       <VoicePlayer tracks={voiceTracks || []} userVoice={userVoice} />
 
-      <div className="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-md">
+      <div className="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-md mb-8">
         <h2 className="text-lg font-bold text-white mb-4 border-b border-white/10 pb-2">Paroles</h2>
         <div className="text-gray-300 whitespace-pre-wrap leading-relaxed text-sm">
           {song.lyrics || "Aucune parole n'a encore été ajoutée pour ce chant."}
         </div>
       </div>
+
+      {/* 👇 L'ENREGISTREUR EST ICI */}
+      <AudioRecorder songId={id} />
     </div>
   );
 }

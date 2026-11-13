@@ -20,8 +20,10 @@ async function AdminGuard({ children }: { children: React.ReactNode }) {
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
 
-  // 👇 On autorise l'admin ET le super_admin
-  if (profile?.role !== 'admin' && profile?.role !== 'super_admin') {
+  // 👇 On autorise les admins, super_admins ET maîtres de chœur
+  const rolesAutorises = ['admin', 'super_admin', 'maitre_choeur'];
+  
+  if (!rolesAutorises.includes(profile?.role)) {
     redirect('/accueil');
   }
 
