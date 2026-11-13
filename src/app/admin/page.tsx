@@ -21,8 +21,9 @@ async function AdminContent() {
   if (!user) redirect('/login');
 
   const { data: profile } = await supabase.from('profiles').select('roles').eq('id', user.id).single();
-  const userRoles = profile?.roles || ['choriste'];
+  const userRoles = profile?.roles || [];
   
+  // 👇 LECTURE DU TABLEAU DE RÔLES
   const isSuperAdmin = userRoles.includes('super_admin');
   const hasBureau = userRoles.includes('admin');
   const hasMusique = userRoles.includes('maitre_choeur');
