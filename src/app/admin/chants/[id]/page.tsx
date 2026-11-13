@@ -1,173 +1,197 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { toast } from 'sonner';
-import Link from 'next/link';
-import AdminVoiceRecorder from '@/components/AdminVoiceRecorder';
+import BottomNav from '@/components/BottomNav';
 
-const VOIX = [
-  { id: 'soprano', label: 'Soprano', color: 'text-pink-400', bg: 'bg-pink-500/10' },
-  { id: 'alto', label: 'Alto', color: 'text-purple-400', bg: 'bg-purple-500/10' },
-  { id: 'tenor', label: 'Ténor', color: 'text-blue-400', bg: 'bg-blue-500/10' },
-  { id: 'basse', label: 'Basse', color: 'text-teal-400', bg: 'bg-teal-500/10' },
-];
-
-export default function AdminVoixPage() {
-  return (
-    <div className="pb-20 max-w-lg mx-auto p-6 min-h-screen bg-slate-950 text-white">
-      <header className="mt-4 mb-6 flex items-center gap-4">
-        <Link href="/admin/chants" className="text-gray-400 hover:text-white">←</Link>
-        <h1 className="text-xl font-bold">Gestion du chant</h1>
-      </header>
-      <Suspense fallback={<div className="text-center p-8 text-purple-400 animate-pulse mt-20">Chargement...</div>}>
-        <VoixContent />
-      </Suspense>
-    </div>
-  );
-}
-
-function VoixContent() {
-  const params = useParams();
+export default function ProfilPage() {
   const router = useRouter();
-  const songId = params.id as string;
-
-  const [song, setSong] = useState<any>(null);
-  const [tracks, setTracks] = useState<any[]>([]);
-  const [uploading, setUploading] = useState<string | null>(null);
-  const [recordingVoice, setRecordingVoice] = useState<string | null>(null);
-  const [profileRoles, setProfileRoles] = useState<string[]>([]);
-  
   const supabase = createClient();
+  
+  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  
+  const [stats, setStats] = useState({
+    totalDue: 0, totalPaid: 0,
+    absents: 0, lates: 0, excused: 0, presents: 0
+  });
 
-  const loadData = async () => {
-    if (!songId) return;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: profile } = await supabase.from('profiles').select('roles').eq('id', user.id).single();
-      setProfileRoles(profile?.roles || []);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState({
+    first_name: '', last_name: '', phone: '', voice: ''
+  });
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    async function fetchData() {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+        setProfile(profileData);
+        
+        if (profileData) {
+          setEditData({
+            first_name: profileData.first_name || '',
+            last_name: profileData.last_name || '',
+            phone: profileData.phone || '',
+            voice: profileData.voice || ''
+          });
+        }
+
+        const { data: attendances } = await supabase.from('attendance').select('*, events(start_at)').eq('profile_id', user.id);
+
+        if (attendances) {
+          let totalDue = 0; let totalPaid = 0; let absents = 0; let lates = 0; let excused = 0; let presents = 0;
+          const now = new Date(); const currentMonth = now.getMonth(); const currentYear = now.getFullYear();
+
+          attendances.forEach(a => {
+            if (!a.is_paid) totalDue += (a.fee || 0); else totalPaid += (a.fee || 0);
+            const eventDate = a.events?.start_at ? new Date(a.events.start_at) : new Date(a.created_at);
+            if (eventDate.getMonth() === currentMonth && eventDate.getFullYear() === currentYear) {
+              if (a.status === 'absent') absents++;
+              if (a.status === 'late') lates++;
+              if (a.status === 'excused') excused++;
+              if (a.status === 'present') presents++;
+            }
+          });
+          setStats({ totalDue, totalPaid, absents, lates, excused, presents });
+        }
+      }
+      setLoading(false);
     }
-    const { data: songData } = await supabase.from('songs').select('*').eq('id', songId).single();
-    setSong(songData);
-    const { data: trackData } = await supabase.from('voice_tracks').select('*').eq('song_id', songId);
-    setTracks(trackData || []);
+    fetchData();
+  }, [supabase]);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.refresh();
+    router.push('/login');
   };
 
-  useEffect(() => { loadData(); }, [songId]);
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setMessage('');
 
-  async function handleUpload(voiceId: string, file: File) {
-    setUploading(voiceId);
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${songId}-${voiceId}.${fileExt}`;
-      
-      const { error: uploadError } = await supabase.storage.from('songs').upload(`voices/${fileName}`, file, { upsert: true });
-      if (uploadError) throw uploadError;
+    const { error } = await supabase.from('profiles').update({
+      first_name: editData.first_name,
+      last_name: editData.last_name,
+      phone: editData.phone,
+      voice: editData.voice
+    }).eq('id', profile.id);
 
-      const { data: { publicUrl } } = supabase.storage.from('songs').getPublicUrl(`voices/${fileName}`);
-      
-      const { error: dbError } = await supabase.from('voice_tracks').upsert({
-        song_id: songId, voice: voiceId, audio_url: publicUrl
-      }, { onConflict: 'song_id, voice' });
-      
-      if (dbError) throw dbError;
-      loadData();
-      toast.success('Piste audio mise à jour !');
-    } catch (error: any) {
-      toast.error(`Erreur : ${error.message}`);
-    } finally {
-      setUploading(null);
+    if (error) {
+      setMessage(`Erreur : ${error.message}`);
+    } else {
+      setProfile({ ...profile, ...editData });
+      setMessage('Profil mis à jour avec succès !');
+      setIsEditing(false);
+      setTimeout(() => setMessage(''), 3000);
     }
-  }
+    setSaving(false);
+  };
 
-  async function handleDeleteVoice(voiceId: string, audioUrl: string) {
-    if (!confirm(`Supprimer la piste ${voiceId} ?`)) return;
-    try {
-      await supabase.from('voice_tracks').delete().eq('song_id', songId).eq('voice', voiceId);
-      const fileName = audioUrl.split('/').pop();
-      if (fileName) await supabase.storage.from('songs').remove([`voices/${fileName}`]);
-      setTracks(tracks.filter(t => !(t.song_id === songId && t.voice === voiceId)));
-      toast.success('Piste supprimée.');
-    } catch (error: any) {
-      toast.error(`Erreur : ${error.message}`);
-    }
-  }
+  if (loading) return <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center"><div className="animate-pulse text-purple-400">Chargement...</div></div>;
 
-  async function handleDeleteSong() {
-    if (!confirm("Supprimer définitivement ce chant et toutes ses voix ?")) return;
-    const { error } = await supabase.from('songs').delete().eq('id', songId);
-    if (error) toast.error(error.message);
-    else router.push('/admin/chants');
-  }
-
-  if (!song) return <div className="text-center mt-10 text-gray-400">Chargement...</div>;
+  const moisActuel = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  const isStaff = profile?.roles?.some((r: string) => ['admin', 'super_admin', 'maitre_choeur'].includes(r));
 
   return (
-    <>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold">{song.title}</h2>
-        <p className="text-xs text-gray-400">{song.composer || 'Auteur inconnu'}</p>
-      </div>
+    <div className="pb-32 max-w-lg mx-auto p-6 min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 to-slate-950">
+      
+      <header className="mt-4 mb-8 flex justify-between items-center">
+        <h1 className="text-3xl font-extrabold text-white">Profil</h1>
+        <div className="flex gap-2">
+          {!isEditing && (
+            <button onClick={() => setIsEditing(true)} className="text-sm text-blue-400 bg-blue-400/10 px-4 py-2 rounded-full border border-blue-400/20 font-medium hover:bg-blue-400/20 transition-colors">Modifier</button>
+          )}
+          <button onClick={handleLogout} className="text-sm text-red-400 bg-red-400/10 px-4 py-2 rounded-full border border-red-400/20 font-medium hover:bg-red-400/20 transition-colors">Quitter</button>
+        </div>
+      </header>
 
-      <div className="space-y-4">
-        {VOIX.map(voix => {
-          const existingTrack = tracks.find(t => t.voice === voix.id);
-          const isUploading = uploading === voix.id;
-          const isRecordingThisVoice = recordingVoice === voix.id;
+      {message && <div className="mb-6 p-4 rounded-xl text-sm font-medium bg-green-500/20 text-green-400 border border-green-500/30 text-center">{message}</div>}
 
-          return (
-            <div key={voix.id} className={`p-5 rounded-3xl border border-white/10 ${voix.bg}`}>
-              <div className="flex justify-between items-center mb-3">
-                <h2 className={`text-lg font-bold ${voix.color}`}>{voix.label}</h2>
-                {existingTrack ? (
-                  <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded">✅ Ajoutée</span>
-                ) : (
-                  <span className="text-xs bg-gray-500/20 text-gray-400 px-2 py-1 rounded">Manquante</span>
-                )}
-              </div>
-
-              {existingTrack && (
-                <div className="flex items-center gap-2 mb-3">
-                  <audio controls className="w-full h-10">
-                    <source src={existingTrack.audio_url} type="audio/mpeg" />
-                  </audio>
-                  <button onClick={() => handleDeleteVoice(voix.id, existingTrack.audio_url)} className="p-2.5 bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl hover:bg-red-500/30 transition-colors">🗑️</button>
-                </div>
-              )}
-
-              {!isRecordingThisVoice && (
-                <div className="flex gap-2">
-                  <label className="flex-1 text-center py-2 px-2 rounded-xl border border-white/20 bg-white/5 hover:bg-white/10 cursor-pointer text-xs font-medium transition-colors">
-                    {isUploading ? 'Envoi...' : existingTrack ? 'Remplacer' : 'Ajouter Fichier'}
-                    <input type="file" accept="audio/*" className="hidden" onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleUpload(voix.id, file);
-                    }} disabled={isUploading} />
-                  </label>
-                  <button onClick={() => setRecordingVoice(voix.id)} className="flex-1 text-center py-2 px-2 rounded-xl border border-emerald-500/30 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 text-xs font-bold transition-colors">
-                    🎤 Enregistrer
-                  </button>
-                </div>
-              )}
-
-              {isRecordingThisVoice && (
-                <AdminVoiceRecorder 
-                  songId={songId} voiceId={voix.id} 
-                  onSuccess={() => { setRecordingVoice(null); loadData(); }}
-                  onCancel={() => setRecordingVoice(null)}
-                />
-              )}
+      {profile && (
+        <>
+          <div className="flex flex-col items-center mb-10">
+            <div className="w-28 h-28 rounded-full bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center text-4xl shadow-[0_0_30px_rgba(168,85,247,0.4)] border-4 border-slate-900 mb-4 text-white font-bold">
+              {profile.first_name?.charAt(0) || '👤'}
             </div>
-          );
-        })}
-      </div>
+            <h2 className="text-2xl font-bold text-white">{profile.first_name} {profile.last_name}</h2>
+            <p className="text-purple-400 font-medium mt-1 uppercase tracking-wider text-sm">🎤 {profile.voice || 'Voix non définie'}</p>
+          </div>
 
-      {profileRoles.includes('admin') && (
-        <button onClick={handleDeleteSong} className="w-full mt-10 bg-red-500/10 text-red-500 border border-red-500/20 p-4 rounded-xl font-bold hover:bg-red-500/20 transition-all">
-          🗑️ Supprimer définitivement ce chant
-        </button>
+          <div className="mb-8 p-5 rounded-3xl bg-white/5 border border-white/10 backdrop-blur-md">
+            <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-2">
+              <h3 className="font-bold text-white">📊 Ma situation</h3>
+              <span className="text-xs text-gray-400 capitalize">{moisActuel}</span>
+            </div>
+            
+            <div className="grid grid-cols-4 gap-2 mb-4 text-center">
+              <div className="bg-black/20 rounded-xl p-2"><p className="text-[10px] text-gray-400 uppercase">Présent</p><p className="text-lg font-bold text-emerald-400">{stats.presents}</p></div>
+              <div className="bg-black/20 rounded-xl p-2"><p className="text-[10px] text-gray-400 uppercase">Retard</p><p className="text-lg font-bold text-orange-400">{stats.lates}</p></div>
+              <div className="bg-black/20 rounded-xl p-2"><p className="text-[10px] text-gray-400 uppercase">Absent</p><p className="text-lg font-bold text-red-400">{stats.absents}</p></div>
+              <div className="bg-black/20 rounded-xl p-2"><p className="text-[10px] text-gray-400 uppercase">Permis</p><p className="text-lg font-bold text-blue-400">{stats.excused}</p></div>
+            </div>
+
+            <div className={`p-4 rounded-xl flex justify-between items-center ${stats.totalDue > 0 ? 'bg-red-500/20 border border-red-500/30' : 'bg-emerald-500/20 border border-emerald-500/30'}`}>
+              <div>
+                <p className={`text-xs font-bold uppercase ${stats.totalDue > 0 ? 'text-red-400' : 'text-emerald-400'}`}>Total à payer</p>
+                <p className="text-2xl font-black text-white">{stats.totalDue} F</p>
+              </div>
+              {stats.totalDue === 0 && <span className="text-3xl">✅</span>}
+            </div>
+          </div>
+
+          {isEditing ? (
+            <form onSubmit={handleSave} className="space-y-4 bg-white/5 p-6 rounded-3xl border border-white/10">
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="text-xs text-gray-400 ml-1">Prénom</label><input type="text" required value={editData.first_name} onChange={e => setEditData({...editData, first_name: e.target.value})} className="w-full mt-1 p-3 bg-slate-900 border border-white/10 rounded-xl outline-none text-white" /></div>
+                <div><label className="text-xs text-gray-400 ml-1">Nom</label><input type="text" required value={editData.last_name} onChange={e => setEditData({...editData, last_name: e.target.value})} className="w-full mt-1 p-3 bg-slate-900 border border-white/10 rounded-xl outline-none text-white" /></div>
+              </div>
+              <div><label className="text-xs text-gray-400 ml-1">Téléphone</label><input type="text" inputMode="tel" value={editData.phone} onChange={e => setEditData({...editData, phone: e.target.value})} className="w-full mt-1 p-3 bg-slate-900 border border-white/10 rounded-xl outline-none text-white" /></div>
+              <div>
+                <label className="text-xs text-gray-400 ml-1">Votre voix</label>
+                <select value={editData.voice} onChange={e => setEditData({...editData, voice: e.target.value})} className="w-full mt-1 p-3 bg-slate-900 border border-white/10 rounded-xl outline-none text-white appearance-none">
+                  <option value="" style={{ color: 'black' }}>-- Choisir --</option>
+                  <option value="soprano" style={{ color: 'black' }}>Soprano</option>
+                  <option value="alto" style={{ color: 'black' }}>Alto</option>
+                  <option value="tenor" style={{ color: 'black' }}>Ténor</option>
+                  <option value="basse" style={{ color: 'black' }}>Basse</option>
+                </select>
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button type="button" onClick={() => setIsEditing(false)} className="flex-1 bg-white/10 text-white p-3 rounded-xl font-medium">Annuler</button>
+                <button type="submit" disabled={saving} className="flex-1 bg-blue-600 text-white p-3 rounded-xl font-bold disabled:opacity-50">{saving ? '...' : 'Enregistrer'}</button>
+              </div>
+            </form>
+          ) : (
+            <div className="space-y-3">
+              <div className="p-5 rounded-3xl bg-white/5 border border-white/10 flex justify-between items-center"><div className="text-gray-400 text-sm">Email</div><div className="font-medium text-white text-sm">{profile.email}</div></div>
+              <div className="p-5 rounded-3xl bg-white/5 border border-white/10 flex justify-between items-center"><div className="text-gray-400 text-sm">Téléphone</div><div className="font-medium text-white text-sm">{profile.phone || 'Non renseigné'}</div></div>
+              <div className="p-5 rounded-3xl bg-white/5 border border-white/10 flex justify-between items-center">
+                <div className="text-gray-400 text-sm">Rôles</div>
+                <div className="font-medium text-white capitalize text-sm">{profile.roles?.join(', ') || 'Choriste'}</div>
+              </div>
+            </div>
+          )}
+
+          {isStaff && !isEditing && (
+            <button onClick={() => router.push('/admin')} className="w-full mt-6 bg-gradient-to-r from-emerald-600 to-teal-600 text-white p-4 rounded-3xl font-bold shadow-lg hover:shadow-emerald-500/25 transition-all flex items-center justify-center gap-2">
+              <span>⚙️</span> Panneau d'administration
+            </button>
+          )}
+          
+          <div className="mt-8 p-5 rounded-3xl border border-white/5 bg-slate-900/50 text-center">
+            <p className="text-xs text-gray-500">Chorale App - Version 1.0.0</p>
+          </div>
+        </>
       )}
-    </>
+
+      <BottomNav />
+    </div>
   );
 }
