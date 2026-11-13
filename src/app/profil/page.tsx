@@ -256,13 +256,13 @@ export default function ProfilPage() {
               </div>
               <div className="p-5 rounded-3xl bg-white/5 border border-white/10 flex justify-between items-center">
                 <div className="text-gray-400 text-sm">Rôle</div>
-                <div className="font-medium text-white capitalize text-sm">{profile.role}</div>
+                <div className="font-medium text-white capitalize text-sm">{profile.roles?.join(', ') || 'choriste'}</div>
               </div>
             </div>
           )}
 
           {/* 👇 Bouton Admin (avec prise en compte du super_admin) */}
-          {['admin', 'super_admin'].includes(profile.role) && !isEditing && (
+          {(profile.roles?.includes('admin') || profile.roles?.includes('super_admin')) && !isEditing && (
             <button 
               onClick={() => router.push('/admin')} 
               className="w-full mt-6 bg-gradient-to-r from-emerald-600 to-teal-600 text-white p-4 rounded-3xl font-bold shadow-lg hover:shadow-emerald-500/25 transition-all flex items-center justify-center gap-2"

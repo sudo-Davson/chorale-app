@@ -14,8 +14,6 @@ export default function AdminMembresPage() {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [membreASupprimer, setMembreASupprimer] = useState<any>(null);
-  
-  // 👇 État pour la barre de recherche
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
@@ -23,12 +21,10 @@ export default function AdminMembresPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-        
-        if (!['admin', 'super_admin'].includes(profile?.role)) {
+        if (!profile?.roles?.includes('admin') && !profile?.roles?.includes('super_admin')) {
           router.push('/admin');
           return;
         }
-        
         setCurrentUser(profile);
       }
       fetchMembres();
@@ -42,14 +38,22 @@ export default function AdminMembresPage() {
     setLoading(false);
   }
 
-  async function handleRoleChange(membreId: string, newRole: string) {
-    const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', membreId);
-    if (error) {
-      toast.error(error.message);
+  // 👇 Fonction pour ajouter ou retirer un rôle
+  async function toggleRole(membreId: string, currentRoles: string[], roleToToggle: string) {
+    let newRoles = [...(currentRoles || [])];
+    
+    if (newRoles.includes(roleToToggle)) {
+      newRoles = newRoles.filter(r => r !== roleToToggle);
     } else {
-      toast.success(`Le rôle a été mis à jour.`);
-      fetchMembres();
+      newRoles.push(roleToToggle);
     }
+    
+    // On s'assure qu'il reste toujours au moins "choriste"
+    if (newRoles.length === 0) newRoles = ['choriste'];
+
+    const { error } = await supabase.from('profiles').update({ roles: newRoles }).eq('id', membreId);
+    if (error) toast.error(error.message);
+    else { toast.success('Rôles mis à jour.'); fetchMembres(); }
   }
 
   async function handleDeleteUser() {
@@ -62,12 +66,11 @@ export default function AdminMembresPage() {
   const peutSupprimer = (membre: any) => {
     if (!currentUser) return false;
     if (membre.id === currentUser.id) return false;
-    if (currentUser.role === 'super_admin') return true;
-    if (currentUser.role === 'admin' && membre.role !== 'super_admin' && membre.role !== 'admin') return true;
+    if (currentUser.roles?.includes('super_admin')) return true;
+    if (currentUser.roles?.includes('admin') && !membre.roles?.includes('super_admin') && !membre.roles?.includes('admin')) return true;
     return false;
   };
 
-  // 👇 Filtrer les membres selon la recherche
   const membresFiltres = membres.filter(m => 
     `${m.first_name} ${m.last_name}`.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -78,18 +81,17 @@ export default function AdminMembresPage() {
         <Link href="/admin" className="text-gray-400 hover:text-white">←</Link>
         <div>
           <h1 className="text-2xl font-bold">Membres</h1>
-          <p className="text-xs text-gray-400">Gérer les rôles et les accès</p>
+          <p className="text-xs text-gray-400">Cliquez sur une pastille pour ajouter/retirer un rôle</p>
         </div>
       </header>
 
-      {/* 👇 BARRE DE RECHERCHE */}
       <div className="relative mb-6">
         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
           <span className="text-gray-400 text-lg">🔍</span>
         </div>
         <input
           type="text"
-          placeholder="Rechercher un membre par nom..."
+          placeholder="Rechercher un membre..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
@@ -100,52 +102,55 @@ export default function AdminMembresPage() {
         <div className="text-center text-gray-400 mt-10 animate-pulse">Chargement...</div>
       ) : (
         <div className="space-y-3">
-          {membresFiltres.length === 0 ? (
-            <div className="text-center p-6 bg-white/5 rounded-2xl border border-white/10 text-gray-400 text-sm">
-              Aucun membre trouvé pour "{searchTerm}".
-            </div>
-          ) : (
-            membresFiltres.map(membre => (
-              <div key={membre.id} className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col gap-3">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-bold text-white">
-                      {membre.first_name} {membre.last_name}
-                      {membre.role === 'super_admin' && <span className="ml-2 text-[10px] bg-purple-500 text-white px-2 py-0.5 rounded-full">SUPER ADMIN</span>}
-                    </h3>
-                    <p className="text-xs text-gray-400 capitalize">{membre.voice || 'Voix non définie'}</p>
-                  </div>
-                  
-                  {peutSupprimer(membre) && (
-                    <button onClick={() => setMembreASupprimer(membre)} className="p-2 bg-red-500/10 text-red-400 rounded-full hover:bg-red-500/20 transition-colors">
-                      🗑️
-                    </button>
-                  )}
+          {membresFiltres.map(membre => (
+            <div key={membre.id} className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col gap-3">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="font-bold text-white flex items-center gap-2">
+                    {membre.first_name} {membre.last_name}
+                    {membre.roles?.includes('super_admin') && <span className="text-[10px] bg-purple-500 text-white px-2 py-0.5 rounded-full">SUPER ADMIN</span>}
+                  </h3>
+                  <p className="text-xs text-gray-400 capitalize">Voix : {membre.voice || 'Non définie'}</p>
                 </div>
-
-                {membre.role !== 'super_admin' && (
-                  <div className="flex flex-col gap-1 mt-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400 w-16">Rôle :</span>
-                      <select 
-                        value={membre.role}
-                        onChange={(e) => handleRoleChange(membre.id, e.target.value)}
-                        disabled={membre.id === currentUser?.id}
-                        className="flex-1 bg-black/20 border border-white/10 rounded-lg p-2 text-sm text-white outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                      >
-                        <option value="choriste" className="text-slate-900">Choriste</option>
-                        <option value="maitre_choeur" className="text-slate-900">Maître de chœur</option>
-                        <option value="admin" className="text-slate-900">Admin (Bureau)</option>
-                      </select>
-                    </div>
-                    <p className="text-[10px] text-gray-500 ml-20 italic">
-                      L'Admin possède les droits du Bureau (sans la musique).
-                    </p>
-                  </div>
+                {peutSupprimer(membre) && (
+                  <button onClick={() => setMembreASupprimer(membre)} className="p-2 bg-red-500/10 text-red-400 rounded-full hover:bg-red-500/20 transition-colors">🗑️</button>
                 )}
               </div>
-            ))
-          )}
+
+              {/* 👇 LES PASTILLES DE RÔLES */}
+              <div className="flex flex-wrap gap-2 mt-2">
+                {membre.roles?.includes('super_admin') ? (
+                  <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                    Tous les droits (Super Admin)
+                  </span>
+                ) : (
+                  <>
+                    <button 
+                      onClick={() => toggleRole(membre.id, membre.roles, 'choriste')}
+                      disabled={membre.id === currentUser?.id}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${membre.roles?.includes('choriste') ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-white/5 text-gray-500 border-white/10'}`}
+                    >
+                      Choriste
+                    </button>
+                    <button 
+                      onClick={() => toggleRole(membre.id, membre.roles, 'maitre_choeur')}
+                      disabled={membre.id === currentUser?.id}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${membre.roles?.includes('maitre_choeur') ? 'bg-pink-500/20 text-pink-400 border-pink-500/30' : 'bg-white/5 text-gray-500 border-white/10'}`}
+                    >
+                      Maître de chœur
+                    </button>
+                    <button 
+                      onClick={() => toggleRole(membre.id, membre.roles, 'admin')}
+                      disabled={membre.id === currentUser?.id}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${membre.roles?.includes('admin') ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'bg-white/5 text-gray-500 border-white/10'}`}
+                    >
+                      Membre du bureau
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

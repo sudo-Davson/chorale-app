@@ -37,11 +37,17 @@ function VoixContent() {
   const [tracks, setTracks] = useState<any[]>([]);
   const [uploading, setUploading] = useState<string | null>(null);
   const [recordingVoice, setRecordingVoice] = useState<string | null>(null);
+  const [profileRoles, setProfileRoles] = useState<string[]>([]);
   
   const supabase = createClient();
 
   const loadData = async () => {
     if (!songId) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase.from('profiles').select('roles').eq('id', user.id).single();
+      setProfileRoles(profile?.roles || []);
+    }
     const { data: songData } = await supabase.from('songs').select('*').eq('id', songId).single();
     setSong(songData);
     const { data: trackData } = await supabase.from('voice_tracks').select('*').eq('song_id', songId);
@@ -157,10 +163,11 @@ function VoixContent() {
         })}
       </div>
 
-      {/* 👇 Le bouton est maintenant accessible au Maître de chœur sans restriction */}
-      <button onClick={handleDeleteSong} className="w-full mt-10 bg-red-500/10 text-red-500 border border-red-500/20 p-4 rounded-xl font-bold hover:bg-red-500/20 transition-all">
-        🗑️ Supprimer définitivement ce chant
-      </button>
+      {profileRoles.includes('admin') && (
+        <button onClick={handleDeleteSong} className="w-full mt-10 bg-red-500/10 text-red-500 border border-red-500/20 p-4 rounded-xl font-bold hover:bg-red-500/20 transition-all">
+          🗑️ Supprimer définitivement ce chant
+        </button>
+      )}
     </>
   );
 }

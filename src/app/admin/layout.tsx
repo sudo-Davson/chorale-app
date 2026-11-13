@@ -18,12 +18,12 @@ async function AdminGuard({ children }: { children: React.ReactNode }) {
 
   if (!user) redirect('/login');
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  const { data: profile } = await supabase.from('profiles').select('roles').eq('id', user.id).single();
 
   // 👇 On autorise les admins, super_admins ET maîtres de chœur
   const rolesAutorises = ['admin', 'super_admin', 'maitre_choeur'];
   
-  if (!rolesAutorises.includes(profile?.role)) {
+  if (!profile?.roles?.some((role: string) => rolesAutorises.includes(role))) {
     redirect('/accueil');
   }
 
