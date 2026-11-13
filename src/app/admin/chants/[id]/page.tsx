@@ -19,7 +19,7 @@ export default function AdminVoixPage() {
     <div className="pb-20 max-w-lg mx-auto p-6 min-h-screen bg-slate-950 text-white">
       <header className="mt-4 mb-6 flex items-center gap-4">
         <Link href="/admin/chants" className="text-gray-400 hover:text-white">←</Link>
-        <h1 className="text-xl font-bold">Gestion des voix</h1>
+        <h1 className="text-xl font-bold">Gestion du chant</h1>
       </header>
       <Suspense fallback={<div className="text-center p-8 text-purple-400 animate-pulse mt-20">Chargement...</div>}>
         <VoixContent />
@@ -75,37 +75,21 @@ function VoixContent() {
     }
   }
 
-  // 👇 NOUVELLE FONCTION : Supprimer une piste vocale
   async function handleDeleteVoice(voiceId: string, audioUrl: string) {
-    if (!confirm(`Supprimer la piste ${voiceId} ? Cette action est irréversible.`)) return;
-
+    if (!confirm(`Supprimer la piste ${voiceId} ?`)) return;
     try {
-      // 1. Supprimer de la base de données
-      const { error: dbError } = await supabase
-        .from('voice_tracks')
-        .delete()
-        .eq('song_id', songId)
-        .eq('voice', voiceId);
-
-      if (dbError) throw dbError;
-
-      // 2. Supprimer le fichier physique du Storage Supabase
-      // On extrait le nom du fichier depuis l'URL publique
+      await supabase.from('voice_tracks').delete().eq('song_id', songId).eq('voice', voiceId);
       const fileName = audioUrl.split('/').pop();
-      if (fileName) {
-        await supabase.storage.from('songs').remove([`voices/${fileName}`]);
-      }
-
-      // 3. Mettre à jour l'interface
+      if (fileName) await supabase.storage.from('songs').remove([`voices/${fileName}`]);
       setTracks(tracks.filter(t => !(t.song_id === songId && t.voice === voiceId)));
-      toast.success('Piste supprimée avec succès.');
+      toast.success('Piste supprimée.');
     } catch (error: any) {
       toast.error(`Erreur : ${error.message}`);
     }
   }
 
   async function handleDeleteSong() {
-    if (!confirm("Supprimer ce chant et toutes ses voix ? (Action irréversible)")) return;
+    if (!confirm("Supprimer définitivement ce chant et toutes ses voix ?")) return;
     const { error } = await supabase.from('songs').delete().eq('id', songId);
     if (error) toast.error(error.message);
     else router.push('/admin/chants');
@@ -137,47 +121,33 @@ function VoixContent() {
                 )}
               </div>
 
-              {/* 👇 Lecteur audio + Bouton Poubelle */}
               {existingTrack && (
                 <div className="flex items-center gap-2 mb-3">
                   <audio controls className="w-full h-10">
                     <source src={existingTrack.audio_url} type="audio/mpeg" />
                   </audio>
-                  <button 
-                    onClick={() => handleDeleteVoice(voix.id, existingTrack.audio_url)}
-                    className="p-2.5 bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl hover:bg-red-500/30 transition-colors"
-                    title="Supprimer cette piste"
-                  >
-                    🗑️
-                  </button>
+                  <button onClick={() => handleDeleteVoice(voix.id, existingTrack.audio_url)} className="p-2.5 bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl hover:bg-red-500/30 transition-colors">🗑️</button>
                 </div>
               )}
 
-              {/* Boutons d'upload et d'enregistrement */}
               {!isRecordingThisVoice && (
                 <div className="flex gap-2">
                   <label className="flex-1 text-center py-2 px-2 rounded-xl border border-white/20 bg-white/5 hover:bg-white/10 cursor-pointer text-xs font-medium transition-colors">
-                    {isUploading ? 'Envoi...' : existingTrack ? 'Remplacer (Fichier)' : 'Ajouter (Fichier)'}
+                    {isUploading ? 'Envoi...' : existingTrack ? 'Remplacer' : 'Ajouter Fichier'}
                     <input type="file" accept="audio/*" className="hidden" onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) handleUpload(voix.id, file);
                     }} disabled={isUploading} />
                   </label>
-                  
-                  <button 
-                    onClick={() => setRecordingVoice(voix.id)}
-                    className="flex-1 text-center py-2 px-2 rounded-xl border border-emerald-500/30 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 text-xs font-bold transition-colors"
-                  >
+                  <button onClick={() => setRecordingVoice(voix.id)} className="flex-1 text-center py-2 px-2 rounded-xl border border-emerald-500/30 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 text-xs font-bold transition-colors">
                     🎤 Enregistrer
                   </button>
                 </div>
               )}
 
-              {/* Le composant d'enregistrement */}
               {isRecordingThisVoice && (
                 <AdminVoiceRecorder 
-                  songId={songId} 
-                  voiceId={voix.id} 
+                  songId={songId} voiceId={voix.id} 
                   onSuccess={() => { setRecordingVoice(null); loadData(); }}
                   onCancel={() => setRecordingVoice(null)}
                 />
@@ -187,6 +157,7 @@ function VoixContent() {
         })}
       </div>
 
+      {/* 👇 Le bouton est maintenant accessible au Maître de chœur sans restriction */}
       <button onClick={handleDeleteSong} className="w-full mt-10 bg-red-500/10 text-red-500 border border-red-500/20 p-4 rounded-xl font-bold hover:bg-red-500/20 transition-all">
         🗑️ Supprimer définitivement ce chant
       </button>
