@@ -15,15 +15,15 @@ async function AdminGuard({ children }: { children: React.ReactNode }) {
   await connection();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-
   if (!user) redirect('/login');
 
   const { data: profile } = await supabase.from('profiles').select('roles').eq('id', user.id).single();
-
-  // 👇 On autorise les admins, super_admins ET maîtres de chœur
-  const rolesAutorises = ['admin', 'super_admin', 'maitre_choeur'];
   
-  if (!profile?.roles?.some((role: string) => rolesAutorises.includes(role))) {
+  // 👇 Vérification basée sur le tableau
+  const userRoles = profile?.roles || [];
+  const hasAccess = userRoles.some((r: string) => ['admin', 'super_admin', 'maitre_choeur'].includes(r));
+
+  if (!hasAccess) {
     redirect('/accueil');
   }
 
