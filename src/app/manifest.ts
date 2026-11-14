@@ -11,22 +11,22 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: '#020617',
     icons: [
       {
-        src: '/icon-192x192.png',
+        src: '/icon.png', // 👈 Le nom de ton fichier
         sizes: '192x192',
         type: 'image/png',
-        purpose: 'any', // 👈 Icône standard
+        purpose: 'any',
       },
       {
-        src: '/icon-512x512.png',
+        src: '/icon.png', // 👈 Le même fichier, Next.js s'occupe de la taille
         sizes: '512x512',
         type: 'image/png',
-        purpose: 'any', // 👈 Icône standard pour le bureau
+        purpose: 'any',
       },
       {
-        src: '/icon-512x512.png', // 👈 On réutilise la même image
+        src: '/icon.png',
         sizes: '512x512',
         type: 'image/png',
-        purpose: 'maskable', // 👈 Icône adaptative pour Android
+        purpose: 'maskable',
       },
     ],
   };
