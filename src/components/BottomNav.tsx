@@ -7,7 +7,7 @@ const items = [
   { href: '/accueil', label: 'Accueil', icon: '🏠' },
   { href: '/chants', label: 'Chants', icon: '🎼' },
   { href: '/agenda', label: 'Agenda', icon: '📅' },
-  { href: '/mur', label: 'Le Mur', icon: '❤️' }, // 👈 Nouvel onglet
+  { href: '/chat', label: 'Chat', icon: '💬' }, // 👈 Modifié ici
   { href: '/annonces', label: 'Alertes', icon: '📢' },
   { href: '/profil', label: 'Profil', icon: '👤' },
 ];
