@@ -34,20 +34,37 @@ export default function ChatPage() {
         setCurrentUser(profile);
       }
 
-      // 👇 Requête avec jointure pour récupérer le nom de l'auteur
-      const { data, error } = await supabase
+      // 1. On récupère TOUS les posts (sans jointure pour éviter les erreurs)
+      const { data: postsData, error: postsError } = await supabase
         .from('posts')
-        .select('*, profiles(first_name, last_name, avatar_url)')
+        .select('*')
         .order('created_at', { ascending: true });
       
-      if (error) {
-        console.error("Erreur Supabase :", error);
-        toast.error("Impossible de charger les messages.");
-      } else if (data) {
-        setMessages(data);
+      if (postsError) throw postsError;
+
+      if (postsData && postsData.length > 0) {
+        // 2. On récupère les IDs uniques des auteurs
+        const authorIds = [...new Set(postsData.map(p => p.profile_id))];
+        
+        // 3. On va chercher les profils correspondants
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, first_name, last_name, avatar_url')
+          .in('id', authorIds);
+
+        // 4. On fusionne les données
+        const formattedPosts = postsData.map(post => ({
+          ...post,
+          author: profilesData?.find(p => p.id === post.profile_id) || { first_name: 'Membre', last_name: '', avatar_url: null }
+        }));
+
+        setMessages(formattedPosts);
+      } else {
+        setMessages([]);
       }
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error("Erreur:", err);
+      toast.error("Impossible de charger les messages.");
     } finally {
       setLoading(false);
       setTimeout(scrollToBottom, 200);
@@ -114,23 +131,19 @@ export default function ChatPage() {
     loadData();
   };
 
-  // 👇 FONCTION POUR SUPPRIMER UN MESSAGE
   const handleDeleteMessage = async (postId: string, imageUrl: string | null, audioUrl: string | null) => {
-    if (!confirm("Supprimer ce message ? Cette action est irréversible.")) return;
+    if (!confirm("Supprimer ce message ?")) return;
 
     try {
-      // 1. Supprimer le fichier image du Storage s'il existe
       if (imageUrl) {
         const fileName = imageUrl.split('/').pop();
         if (fileName) await supabase.storage.from('avatars').remove([`chat/${fileName}`]);
       }
-      // 2. Supprimer le fichier audio du Storage s'il existe
       if (audioUrl) {
         const fileName = audioUrl.split('/').pop();
         if (fileName) await supabase.storage.from('avatars').remove([`chat/${fileName}`]);
       }
 
-      // 3. Supprimer le message de la base de données
       const { error } = await supabase.from('posts').delete().eq('id', postId);
       if (error) throw error;
 
@@ -160,11 +173,11 @@ export default function ChatPage() {
           messages.map((msg) => {
             const isMe = msg.profile_id === currentUser?.id;
             const dateStr = formatDistanceToNow(new Date(msg.created_at), { addSuffix: true, locale: fr });
-            const authorName = msg.profiles?.first_name || "Membre";
+            const authorName = msg.author?.first_name || "Membre";
             
-            // 👇 Calcul pour la règle des 24 heures
+            // Règle des 24h
             const hoursSinceCreation = (new Date().getTime() - new Date(msg.created_at).getTime()) / (1000 * 60 * 60);
-            const canDelete = isMe && hoursSinceCreation < 24; // Suppression possible si < 24h
+            const canDelete = isMe && hoursSinceCreation < 24;
 
             return (
               <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
@@ -175,7 +188,6 @@ export default function ChatPage() {
                   )}
 
                   <div className="flex items-center gap-2">
-                    {/* 👇 Bouton de suppression (seulement pour soi et < 24h) */}
                     {canDelete && (
                       <button 
                         onClick={() => handleDeleteMessage(msg.id, msg.image_url, msg.audio_url)}
