@@ -23,7 +23,6 @@ async function AdminContent() {
   const { data: profile } = await supabase.from('profiles').select('roles').eq('id', user.id).single();
   const userRoles = profile?.roles || [];
   
-  // 👇 LECTURE DU TABLEAU DE RÔLES
   const isSuperAdmin = userRoles.includes('super_admin');
   const hasBureau = userRoles.includes('admin');
   const hasMusique = userRoles.includes('maitre_choeur');
@@ -51,7 +50,7 @@ async function AdminContent() {
 
       <div className="grid grid-cols-1 gap-4">
         
-        {/* MUSIQUE : Affiché si Super Admin ou Maître de chœur */}
+        {/* 👇 MUSIQUE : Maître de chœur ET Super Admin (Maintenant avec l'Agenda) */}
         {(isSuperAdmin || hasMusique) && (
           <>
             <Link href="/admin/soumissions" className="p-6 rounded-3xl bg-gradient-to-r from-pink-600/20 to-rose-600/20 border border-pink-500/30 hover:border-pink-400 transition-all flex items-center justify-between group">
@@ -69,20 +68,21 @@ async function AdminContent() {
               </div>
               <span className="text-blue-500 group-hover:translate-x-1 transition-transform">→</span>
             </Link>
-          </>
-        )}
 
-        {/* BUREAU : Affiché si Super Admin ou Membre du bureau */}
-        {(isSuperAdmin || hasBureau) && (
-          <>
+            {/* 👇 AGENDA DÉPLACÉ ICI */}
             <Link href="/admin/agenda" className="p-6 rounded-3xl bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/30 hover:border-purple-400 transition-all flex items-center justify-between group">
               <div>
                 <h2 className="text-xl font-bold text-white mb-1 group-hover:text-purple-400 transition-colors">📅 Gérer l'agenda</h2>
-                <p className="text-sm text-gray-400">Créer, modifier un événement</p>
+                <p className="text-sm text-gray-400">Créer et organiser les événements</p>
               </div>
               <span className="text-purple-500 group-hover:translate-x-1 transition-transform">→</span>
             </Link>
+          </>
+        )}
 
+        {/* 👇 BUREAU : Membre du bureau ET Super Admin */}
+        {(isSuperAdmin || hasBureau) && (
+          <>
             <Link href="/admin/annonces" className="p-6 rounded-3xl bg-gradient-to-r from-orange-600/20 to-amber-600/20 border border-orange-500/30 hover:border-orange-400 transition-all flex items-center justify-between group">
               <div>
                 <h2 className="text-xl font-bold text-white mb-1 group-hover:text-orange-400 transition-colors">📢 Gérer les annonces</h2>
