@@ -32,7 +32,9 @@ export default function ProfilPage() {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (user) {
+        // 👇 On récupère bien toute la ligne, y compris le tableau 'roles'
         const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+        console.log("Données du profil :", profileData); // Pour vérifier dans la console
         setProfile(profileData);
         
         if (profileData) {
@@ -134,7 +136,7 @@ export default function ProfilPage() {
 
   const moisActuel = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
   
-  // 👇 VÉRIFICATION CORRIGÉE (tableau 'roles')
+  // 👇 La condition qui affiche le bouton
   const isStaff = profile?.roles?.some((r: string) => ['admin', 'super_admin', 'maitre_choeur'].includes(r));
 
   return (
@@ -230,6 +232,8 @@ export default function ProfilPage() {
             <div className="space-y-3">
               <div className="p-5 rounded-3xl bg-white/5 border border-white/10 flex justify-between items-center"><div className="text-gray-400 text-sm">Email</div><div className="font-medium text-white text-sm">{profile.email}</div></div>
               <div className="p-5 rounded-3xl bg-white/5 border border-white/10 flex justify-between items-center"><div className="text-gray-400 text-sm">Téléphone</div><div className="font-medium text-white text-sm">{profile.phone || 'Non renseigné'}</div></div>
+              
+              {/* 👇 AFFICHAGE DES RÔLES */}
               <div className="p-5 rounded-3xl bg-white/5 border border-white/10 flex flex-col gap-2">
                 <div className="text-gray-400 text-sm">Rôles</div>
                 <div className="flex flex-wrap gap-2">
@@ -243,7 +247,6 @@ export default function ProfilPage() {
             </div>
           )}
 
-          {/* 👇 C'est ce bouton qui doit apparaître maintenant */}
           {isStaff && !isEditing && (
             <button onClick={() => router.push('/admin')} className="w-full mt-6 bg-gradient-to-r from-emerald-600 to-teal-600 text-white p-4 rounded-3xl font-bold shadow-lg hover:shadow-emerald-500/25 transition-all flex items-center justify-center gap-2">
               <span>⚙️</span> Panneau d'administration
