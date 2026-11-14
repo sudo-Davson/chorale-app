@@ -38,7 +38,7 @@ export default function AdminMembresPage() {
     setLoading(false);
   }
 
-  // 👇 Fonction pour ajouter ou retirer un rôle
+  // 👇 FONCTION AVEC MISE À JOUR INSTANTANÉE (Optimistic UI)
   async function toggleRole(membreId: string, currentRoles: string[], roleToToggle: string) {
     let newRoles = [...(currentRoles || [])];
     
@@ -51,9 +51,18 @@ export default function AdminMembresPage() {
     // On s'assure qu'il reste toujours au moins "choriste"
     if (newRoles.length === 0) newRoles = ['choriste'];
 
+    // 1. On change la couleur du bouton INSTANTANÉMENT dans l'interface
+    setMembres(prev => prev.map(m => m.id === membreId ? { ...m, roles: newRoles } : m));
+
+    // 2. On sauvegarde en arrière-plan
     const { error } = await supabase.from('profiles').update({ roles: newRoles }).eq('id', membreId);
-    if (error) toast.error(error.message);
-    else { toast.success('Rôles mis à jour.'); fetchMembres(); }
+    
+    if (error) {
+      toast.error(error.message);
+      fetchMembres(); // En cas d'erreur, on remet l'affichage à jour
+    } else {
+      toast.success('Rôles mis à jour.');
+    }
   }
 
   async function handleDeleteUser() {
@@ -81,7 +90,7 @@ export default function AdminMembresPage() {
         <Link href="/admin" className="text-gray-400 hover:text-white">←</Link>
         <div>
           <h1 className="text-2xl font-bold">Membres</h1>
-          <p className="text-xs text-gray-400">Cliquez sur une pastille pour ajouter/retirer un rôle</p>
+          <p className="text-xs text-gray-400">Cliquez sur un rôle pour l'activer (couleur) ou le désactiver (gris)</p>
         </div>
       </header>
 
@@ -117,7 +126,7 @@ export default function AdminMembresPage() {
                 )}
               </div>
 
-              {/* 👇 LES PASTILLES DE RÔLES */}
+              {/* 👇 LES PASTILLES DE RÔLES AVEC COULEURS VIVES */}
               <div className="flex flex-wrap gap-2 mt-2">
                 {membre.roles?.includes('super_admin') ? (
                   <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30">
@@ -128,23 +137,35 @@ export default function AdminMembresPage() {
                     <button 
                       onClick={() => toggleRole(membre.id, membre.roles, 'choriste')}
                       disabled={membre.id === currentUser?.id}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${membre.roles?.includes('choriste') ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-white/5 text-gray-500 border-white/10'}`}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
+                        membre.roles?.includes('choriste') 
+                          ? 'bg-emerald-500 text-white border-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.3)]' 
+                          : 'bg-white/5 text-gray-500 border-white/10 hover:bg-white/10'
+                      } disabled:opacity-50`}
                     >
                       Choriste
                     </button>
                     <button 
                       onClick={() => toggleRole(membre.id, membre.roles, 'maitre_choeur')}
                       disabled={membre.id === currentUser?.id}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${membre.roles?.includes('maitre_choeur') ? 'bg-pink-500/20 text-pink-400 border-pink-500/30' : 'bg-white/5 text-gray-500 border-white/10'}`}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
+                        membre.roles?.includes('maitre_choeur') 
+                          ? 'bg-pink-500 text-white border-pink-400 shadow-[0_0_10px_rgba(236,72,153,0.3)]' 
+                          : 'bg-white/5 text-gray-500 border-white/10 hover:bg-white/10'
+                      } disabled:opacity-50`}
                     >
                       Maître de chœur
                     </button>
                     <button 
                       onClick={() => toggleRole(membre.id, membre.roles, 'admin')}
                       disabled={membre.id === currentUser?.id}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${membre.roles?.includes('admin') ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'bg-white/5 text-gray-500 border-white/10'}`}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
+                        membre.roles?.includes('admin') 
+                          ? 'bg-blue-500 text-white border-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.3)]' 
+                          : 'bg-white/5 text-gray-500 border-white/10 hover:bg-white/10'
+                      } disabled:opacity-50`}
                     >
-                      Membre du bureau
+                      Bureau
                     </button>
                   </>
                 )}
