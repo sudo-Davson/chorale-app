@@ -34,7 +34,7 @@ export default function ChatPage() {
         setCurrentUser(profile);
       }
 
-      // 👇 Requête simplifiée et sécurisée
+      // 👇 Requête avec jointure pour récupérer le nom de l'auteur
       const { data, error } = await supabase
         .from('posts')
         .select('*, profiles(first_name, last_name, avatar_url)')
@@ -42,14 +42,12 @@ export default function ChatPage() {
       
       if (error) {
         console.error("Erreur Supabase :", error);
-        // Si la jointure échoue, on récupère au moins les messages sans les profils
-        const { data: rawData } = await supabase.from('posts').select('*').order('created_at', { ascending: true });
-        if (rawData) setMessages(rawData);
+        toast.error("Impossible de charger les messages.");
       } else if (data) {
         setMessages(data);
       }
     } catch (err) {
-      console.error("Erreur réseau :", err);
+      console.error(err);
     } finally {
       setLoading(false);
       setTimeout(scrollToBottom, 200);
@@ -59,9 +57,8 @@ export default function ChatPage() {
   useEffect(() => {
     loadData();
 
-    // Écoute en temps réel
     const channel = supabase.channel('chat_realtime')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => {
         loadData();
       })
       .subscribe();
@@ -98,7 +95,6 @@ export default function ChatPage() {
       setImageFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       
-      // On force le rechargement immédiatement
       loadData();
     } catch (error: any) {
       toast.error(error.message);
@@ -118,6 +114,33 @@ export default function ChatPage() {
     loadData();
   };
 
+  // 👇 FONCTION POUR SUPPRIMER UN MESSAGE
+  const handleDeleteMessage = async (postId: string, imageUrl: string | null, audioUrl: string | null) => {
+    if (!confirm("Supprimer ce message ? Cette action est irréversible.")) return;
+
+    try {
+      // 1. Supprimer le fichier image du Storage s'il existe
+      if (imageUrl) {
+        const fileName = imageUrl.split('/').pop();
+        if (fileName) await supabase.storage.from('avatars').remove([`chat/${fileName}`]);
+      }
+      // 2. Supprimer le fichier audio du Storage s'il existe
+      if (audioUrl) {
+        const fileName = audioUrl.split('/').pop();
+        if (fileName) await supabase.storage.from('avatars').remove([`chat/${fileName}`]);
+      }
+
+      // 3. Supprimer le message de la base de données
+      const { error } = await supabase.from('posts').delete().eq('id', postId);
+      if (error) throw error;
+
+      toast.success('Message supprimé.');
+      loadData();
+    } catch (error: any) {
+      toast.error(error.message);
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen max-w-lg mx-auto bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 to-slate-950">
       
@@ -125,7 +148,6 @@ export default function ChatPage() {
         <h1 className="text-2xl font-extrabold text-white flex items-center gap-2">
           💬 Chat de la Chorale
         </h1>
-        {/* 👇 Bouton de rafraîchissement manuel */}
         <button onClick={loadData} className="text-sm text-gray-400 hover:text-white">🔄</button>
       </header>
 
@@ -133,40 +155,54 @@ export default function ChatPage() {
         {loading ? (
           <div className="text-center text-gray-400 animate-pulse mt-10">Chargement des messages...</div>
         ) : messages.length === 0 ? (
-          <div className="text-center text-gray-500 mt-10">Aucun message pour le moment. Soyez le premier !</div>
+          <div className="text-center text-gray-500 mt-10">Aucun message. Soyez le premier !</div>
         ) : (
           messages.map((msg) => {
             const isMe = msg.profile_id === currentUser?.id;
             const dateStr = formatDistanceToNow(new Date(msg.created_at), { addSuffix: true, locale: fr });
-
-            // 👇 Sécurité : on gère le cas où le profil n'est pas chargé
-            const authorName = msg.profiles?.first_name || (isMe ? currentUser?.first_name : "Membre");
-            const authorAvatar = msg.profiles?.avatar_url || null;
+            const authorName = msg.profiles?.first_name || "Membre";
+            
+            // 👇 Calcul pour la règle des 24 heures
+            const hoursSinceCreation = (new Date().getTime() - new Date(msg.created_at).getTime()) / (1000 * 60 * 60);
+            const canDelete = isMe && hoursSinceCreation < 24; // Suppression possible si < 24h
 
             return (
               <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[80%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                <div className={`max-w-[80%] flex flex-col ${isMe ? 'items-end' : 'items-start'} relative group`}>
                   
                   {!isMe && (
-                    <span className="text-xs text-gray-400 mb-1 ml-1">{authorName}</span>
+                    <span className="text-xs text-gray-400 mb-1 ml-1 font-medium">{authorName}</span>
                   )}
 
-                  <div className={`p-3 rounded-2xl ${
-                    isMe 
-                      ? 'bg-purple-600 text-white rounded-tr-sm' 
-                      : 'bg-white/10 text-gray-100 rounded-tl-sm border border-white/5'
-                  }`}>
-                    {msg.message_type !== 'audio' && msg.message_type !== 'image' && (
-                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                  <div className="flex items-center gap-2">
+                    {/* 👇 Bouton de suppression (seulement pour soi et < 24h) */}
+                    {canDelete && (
+                      <button 
+                        onClick={() => handleDeleteMessage(msg.id, msg.image_url, msg.audio_url)}
+                        className={`text-gray-500 hover:text-red-400 transition-colors ${isMe ? 'order-first' : 'order-last'}`}
+                        title="Supprimer"
+                      >
+                        🗑️
+                      </button>
                     )}
 
-                    {msg.image_url && (
-                      <img src={msg.image_url} alt="Chat" className="rounded-xl max-h-60 object-cover mb-1" />
-                    )}
+                    <div className={`p-3 rounded-2xl ${
+                      isMe 
+                        ? 'bg-purple-600 text-white rounded-tr-sm' 
+                        : 'bg-white/10 text-gray-100 rounded-tl-sm border border-white/5'
+                    }`}>
+                      {msg.message_type !== 'audio' && msg.message_type !== 'image' && (
+                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                      )}
 
-                    {msg.audio_url && (
-                      <audio src={msg.audio_url} controls className="w-56 h-10" />
-                    )}
+                      {msg.image_url && (
+                        <img src={msg.image_url} alt="Chat" className="rounded-xl max-h-60 object-cover mb-1" />
+                      )}
+
+                      {msg.audio_url && (
+                        <audio src={msg.audio_url} controls className="w-56 h-10" />
+                      )}
+                    </div>
                   </div>
                   <span className="text-[10px] text-gray-500 mt-1 mr-1">{dateStr}</span>
                 </div>
