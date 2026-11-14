@@ -20,7 +20,7 @@ export default function ChatAudioRecorder({
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Démarrer l'enregistrement automatiquement à l'ouverture
+  // Démarre l'enregistrement automatiquement
   useEffect(() => {
     startRecording();
     return () => stopRecording();
@@ -49,7 +49,7 @@ export default function ChatAudioRecorder({
         const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         setAudioBlob(blob);
         setAudioUrl(URL.createObjectURL(blob));
-        stream.getTracks().forEach(track => track.stop());
+        stream.getTracks().forEach(track => track.stop()); // Éteint le micro
       };
 
       setRecordingTime(0);
@@ -96,23 +96,32 @@ export default function ChatAudioRecorder({
   };
 
   return (
-    <div className="flex items-center gap-3 w-full animate-in slide-in-from-bottom-2">
+    <div className="flex items-center gap-2 w-full">
       {!audioUrl ? (
+        // ÉTAPE 1 : ENREGISTREMENT EN COURS
         <>
-          <div className="flex-1 bg-white/5 rounded-full px-4 py-3 flex items-center justify-between border border-white/10">
+          <button onClick={onCancel} className="text-gray-400 hover:text-white p-2 transition-colors">
+            ✕
+          </button>
+          <div className="flex-1 bg-red-500/10 border border-red-500/20 rounded-full px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2 text-red-400 animate-pulse">
               <div className="w-3 h-3 bg-red-500 rounded-full"></div>
               <span className="font-mono text-sm font-bold">{formatTime(recordingTime)}</span>
             </div>
-            <span className="text-xs text-gray-400">Enregistrement...</span>
+            <span className="text-xs text-red-400/70">Enregistrement...</span>
           </div>
-          <button onClick={onCancel} className="text-gray-400 hover:text-white p-2">✕</button>
+          <button onClick={stopRecording} className="bg-red-500 text-white p-3 rounded-full hover:bg-red-600 transition-colors flex-shrink-0">
+            ⏹️
+          </button>
         </>
       ) : (
+        // ÉTAPE 2 : ÉCOUTE ET ENVOI
         <>
+          <button onClick={onCancel} className="text-gray-400 hover:text-white p-2 transition-colors">
+            ✕
+          </button>
           <audio src={audioUrl} controls className="flex-1 h-10" />
-          <button onClick={onCancel} className="text-gray-400 hover:text-white p-2">✕</button>
-          <button onClick={handleSend} disabled={uploading} className="bg-emerald-600 text-white p-3 rounded-full hover:bg-emerald-500 disabled:opacity-50">
+          <button onClick={handleSend} disabled={uploading} className="bg-purple-600 text-white p-3 rounded-full hover:bg-purple-500 disabled:opacity-50 transition-colors flex-shrink-0">
             {uploading ? '...' : '➤'}
           </button>
         </>
