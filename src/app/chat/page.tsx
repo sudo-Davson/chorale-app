@@ -34,24 +34,32 @@ export default function ChatPage() {
         setCurrentUser(profile);
       }
 
+      // 👇 Requête simplifiée et sécurisée
       const { data, error } = await supabase
         .from('posts')
         .select('*, profiles(first_name, last_name, avatar_url)')
         .order('created_at', { ascending: true });
       
-      if (error) throw error;
-      if (data) setMessages(data);
+      if (error) {
+        console.error("Erreur Supabase :", error);
+        // Si la jointure échoue, on récupère au moins les messages sans les profils
+        const { data: rawData } = await supabase.from('posts').select('*').order('created_at', { ascending: true });
+        if (rawData) setMessages(rawData);
+      } else if (data) {
+        setMessages(data);
+      }
     } catch (err) {
-      console.error(err);
+      console.error("Erreur réseau :", err);
     } finally {
       setLoading(false);
-      setTimeout(scrollToBottom, 100);
+      setTimeout(scrollToBottom, 200);
     }
   };
 
   useEffect(() => {
     loadData();
 
+    // Écoute en temps réel
     const channel = supabase.channel('chat_realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, () => {
         loadData();
@@ -89,6 +97,9 @@ export default function ChatPage() {
       setContent('');
       setImageFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
+      
+      // On force le rechargement immédiatement
+      loadData();
     } catch (error: any) {
       toast.error(error.message);
     } finally {
@@ -104,31 +115,40 @@ export default function ChatPage() {
       message_type: 'audio'
     });
     setIsRecordingAudio(false);
+    loadData();
   };
 
   return (
     <div className="flex flex-col h-screen max-w-lg mx-auto bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 to-slate-950">
       
-      <header className="pt-6 pb-4 px-4 bg-slate-950/80 backdrop-blur-lg border-b border-white/10 z-10 sticky top-0">
+      <header className="pt-6 pb-4 px-4 bg-slate-950/80 backdrop-blur-lg border-b border-white/10 z-10 sticky top-0 flex justify-between items-center">
         <h1 className="text-2xl font-extrabold text-white flex items-center gap-2">
           💬 Chat de la Chorale
         </h1>
+        {/* 👇 Bouton de rafraîchissement manuel */}
+        <button onClick={loadData} className="text-sm text-gray-400 hover:text-white">🔄</button>
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-32">
         {loading ? (
           <div className="text-center text-gray-400 animate-pulse mt-10">Chargement des messages...</div>
+        ) : messages.length === 0 ? (
+          <div className="text-center text-gray-500 mt-10">Aucun message pour le moment. Soyez le premier !</div>
         ) : (
           messages.map((msg) => {
             const isMe = msg.profile_id === currentUser?.id;
             const dateStr = formatDistanceToNow(new Date(msg.created_at), { addSuffix: true, locale: fr });
+
+            // 👇 Sécurité : on gère le cas où le profil n'est pas chargé
+            const authorName = msg.profiles?.first_name || (isMe ? currentUser?.first_name : "Membre");
+            const authorAvatar = msg.profiles?.avatar_url || null;
 
             return (
               <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[80%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                   
                   {!isMe && (
-                    <span className="text-xs text-gray-400 mb-1 ml-1">{msg.profiles.first_name}</span>
+                    <span className="text-xs text-gray-400 mb-1 ml-1">{authorName}</span>
                   )}
 
                   <div className={`p-3 rounded-2xl ${
@@ -157,7 +177,6 @@ export default function ChatPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* 👇 INPUT TOTALEMENT TRANSPARENT (Sans cadre, collé en bas) */}
       <div className="fixed bottom-16 left-0 right-0 max-w-lg mx-auto p-3 bg-slate-950/90 backdrop-blur-lg border-t border-white/5">
         
         {imageFile && (
@@ -174,13 +193,11 @@ export default function ChatPage() {
           />
         ) : (
           <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-            {/* Bouton photo transparent */}
             <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-400 hover:text-white transition-colors">
               📷
             </button>
             <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={(e) => setImageFile(e.target.files?.[0] || null)} />
             
-            {/* Champ de texte sans cadre */}
             <input
               type="text"
               placeholder="Votre message..."
