@@ -68,35 +68,23 @@ export default function ProfilPage() {
     fetchData();
   }, [supabase]);
 
-  // 👇 FONCTION D'UPLOAD DE LA PHOTO
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error("L'image ne doit pas dépasser 2 Mo.");
-      return;
-    }
+    if (file.size > 2 * 1024 * 1024) { toast.error("L'image ne doit pas dépasser 2 Mo."); return; }
 
     setUploadingImage(true);
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${profile.id}-${Date.now()}.${fileExt}`;
-
-      // 1. Upload sur Supabase Storage
       const { error: uploadError } = await supabase.storage.from('avatars').upload(fileName, file);
       if (uploadError) throw uploadError;
-
-      // 2. Récupérer l'URL publique
       const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(fileName);
-
-      // 3. Mettre à jour le profil
       const { error: updateError } = await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', profile.id);
       if (updateError) throw updateError;
-
       setProfile({ ...profile, avatar_url: publicUrl });
       toast.success('Photo de profil mise à jour !');
-      router.refresh(); // Pour mettre à jour l'avatar sur l'accueil
+      router.refresh();
     } catch (error: any) {
       toast.error(error.message);
     } finally {
@@ -104,22 +92,12 @@ export default function ProfilPage() {
     }
   };
 
-  // 👇 FONCTION POUR SUPPRIMER LA PHOTO
   const handleRemoveImage = async () => {
     if (!confirm("Supprimer votre photo de profil ?")) return;
-    
     try {
-      // On extrait le nom du fichier de l'URL
       const fileName = profile.avatar_url.split('/').pop();
-      
-      // 1. Supprimer du Storage
-      if (fileName) {
-        await supabase.storage.from('avatars').remove([fileName]);
-      }
-
-      // 2. Retirer du profil
+      if (fileName) await supabase.storage.from('avatars').remove([fileName]);
       await supabase.from('profiles').update({ avatar_url: null }).eq('id', profile.id);
-      
       setProfile({ ...profile, avatar_url: null });
       toast.success('Photo supprimée.');
       router.refresh();
@@ -138,17 +116,12 @@ export default function ProfilPage() {
     e.preventDefault();
     setSaving(true);
     setMessage('');
-
     const { error } = await supabase.from('profiles').update({
-      first_name: editData.first_name,
-      last_name: editData.last_name,
-      phone: editData.phone,
-      voice: editData.voice
+      first_name: editData.first_name, last_name: editData.last_name, phone: editData.phone, voice: editData.voice
     }).eq('id', profile.id);
 
-    if (error) {
-      setMessage(`Erreur : ${error.message}`);
-    } else {
+    if (error) setMessage(`Erreur : ${error.message}`);
+    else {
       setProfile({ ...profile, ...editData });
       setMessage('Profil mis à jour avec succès !');
       setIsEditing(false);
@@ -160,6 +133,8 @@ export default function ProfilPage() {
   if (loading) return <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center"><div className="animate-pulse text-purple-400">Chargement...</div></div>;
 
   const moisActuel = new Date().toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  
+  // 👇 VÉRIFICATION CORRIGÉE (tableau 'roles')
   const isStaff = profile?.roles?.some((r: string) => ['admin', 'super_admin', 'maitre_choeur'].includes(r));
 
   return (
@@ -180,7 +155,6 @@ export default function ProfilPage() {
       {profile && (
         <>
           <div className="flex flex-col items-center mb-10">
-            {/* 👇 AVATAR CLIQUABLE POUR CHANGER LA PHOTO */}
             <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
               <div className="w-28 h-28 rounded-full overflow-hidden bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center text-4xl shadow-[0_0_30px_rgba(168,85,247,0.4)] border-4 border-slate-900 mb-4 text-white font-bold">
                 {uploadingImage ? (
@@ -208,9 +182,6 @@ export default function ProfilPage() {
             <p className="text-purple-400 font-medium mt-1 uppercase tracking-wider text-sm">🎤 {profile.voice || 'Voix non définie'}</p>
           </div>
 
-          {/* ... (Le bloc "Ma situation", le mode édition et les infos de contact restent inchangés) ... */}
-          {/* ... (Copiez-collez la partie correspondante du code précédent) ... */}
-          
           <div className="mb-8 p-5 rounded-3xl bg-white/5 border border-white/10 backdrop-blur-md">
             <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-2">
               <h3 className="font-bold text-white">📊 Ma situation</h3>
@@ -259,13 +230,20 @@ export default function ProfilPage() {
             <div className="space-y-3">
               <div className="p-5 rounded-3xl bg-white/5 border border-white/10 flex justify-between items-center"><div className="text-gray-400 text-sm">Email</div><div className="font-medium text-white text-sm">{profile.email}</div></div>
               <div className="p-5 rounded-3xl bg-white/5 border border-white/10 flex justify-between items-center"><div className="text-gray-400 text-sm">Téléphone</div><div className="font-medium text-white text-sm">{profile.phone || 'Non renseigné'}</div></div>
-              <div className="p-5 rounded-3xl bg-white/5 border border-white/10 flex justify-between items-center">
+              <div className="p-5 rounded-3xl bg-white/5 border border-white/10 flex flex-col gap-2">
                 <div className="text-gray-400 text-sm">Rôles</div>
-                <div className="font-medium text-white capitalize text-sm">{profile.roles?.join(', ') || 'Choriste'}</div>
+                <div className="flex flex-wrap gap-2">
+                  {profile.roles?.map((role: string) => (
+                    <span key={role} className="px-2 py-1 bg-purple-500/20 text-purple-300 text-xs font-bold rounded-lg capitalize border border-purple-500/30">
+                      {role === 'admin' ? 'Bureau' : role === 'maitre_choeur' ? 'Maître de chœur' : role}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
           )}
 
+          {/* 👇 C'est ce bouton qui doit apparaître maintenant */}
           {isStaff && !isEditing && (
             <button onClick={() => router.push('/admin')} className="w-full mt-6 bg-gradient-to-r from-emerald-600 to-teal-600 text-white p-4 rounded-3xl font-bold shadow-lg hover:shadow-emerald-500/25 transition-all flex items-center justify-center gap-2">
               <span>⚙️</span> Panneau d'administration
