@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, useMotionValue, useMotionTemplate, animate } from 'framer-motion';
@@ -19,71 +19,63 @@ export default function BottomNav() {
   const pathname = usePathname();
   const containerRef = useRef<HTMLDivElement>(null);
   
-  // Trouver l'index actif
   const activeIndex = items.findIndex(item => pathname.startsWith(item.href));
   const [currentIndex, setCurrentIndex] = useState(activeIndex !== -1 ? activeIndex : 0);
-
-  // Valeurs animées pour la position
+  
   const x = useMotionValue(0);
 
-  // Mettre à jour l'index si l'URL change
-  useEffect(() => {
-    if (activeIndex !== -1) setCurrentIndex(activeIndex);
-  }, [pathname, activeIndex]);
-
-  // Calculer la position X en fonction de la largeur de l'écran
-  const updatePosition = (index: number, isInitial = false) => {
+  // 👇 useLayoutEffect permet de calculer la position AVANT que l'écran ne s'affiche (évite le saut)
+  useLayoutEffect(() => {
     if (!containerRef.current) return;
     const containerWidth = containerRef.current.offsetWidth;
     const tabWidth = containerWidth / items.length;
-    const targetX = (tabWidth * index) + (tabWidth / 2);
+    const targetX = (tabWidth * currentIndex) + (tabWidth / 2);
+    
+    // On place le cercle instantanément au bon endroit au premier chargement
+    x.set(targetX);
+  }, [currentIndex, x]);
 
-    if (isInitial) {
-      x.set(targetX);
-    } else {
-      // Animation "Spring" fluide (comme sur le GIF)
-      animate(x, targetX, { type: 'spring', stiffness: 400, damping: 35 });
+  // Gérer les changements de page
+  useEffect(() => {
+    if (activeIndex !== -1 && activeIndex !== currentIndex) {
+      setCurrentIndex(activeIndex);
     }
+  }, [pathname, activeIndex]);
+
+  // 👇 On anime le déplacement quand l'utilisateur clique
+  const handleTabClick = (index: number) => {
+    if (!containerRef.current) return;
+    setCurrentIndex(index);
+    
+    const containerWidth = containerRef.current.offsetWidth;
+    const tabWidth = containerWidth / items.length;
+    const targetX = (tabWidth * index) + (tabWidth / 2);
+    
+    animate(x, targetX, { type: 'spring', stiffness: 400, damping: 35 });
   };
 
-  // Initialisation et gestion du redimensionnement
-  useEffect(() => {
-    updatePosition(currentIndex, true);
-    
-    const handleResize = () => updatePosition(currentIndex, true);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  // Quand on clique sur un onglet
-  useEffect(() => {
-    updatePosition(currentIndex);
-  }, [currentIndex]);
-
-  // 👇 La magie du masque : On crée un trou (notch) qui suit la valeur X
-  const maskImage = useMotionTemplate`radial-gradient(circle 40px at ${x}px -10px, transparent 98%, black 100%), linear-gradient(black, black)`;
+  // 👇 Le masque qui crée l'encoche (on enlève le flou de la barre pour que le trou soit net)
+  const maskImage = useMotionTemplate`radial-gradient(circle 42px at ${x}px -12px, transparent 99%, black 100%), linear-gradient(black, black)`;
 
   return (
     <nav className="fixed bottom-6 left-0 right-0 z-50 px-4 pb-safe">
-      <div 
-        ref={containerRef}
-        className="max-w-md mx-auto relative h-16"
-      >
-        {/* 1. LA BARRE NOIRE AVEC LE MASQUE (L'encoche qui glisse) */}
+      <div ref={containerRef} className="max-w-md mx-auto relative h-16">
+        
+        {/* LA BARRE NOIRE (Opaque, sans flou pour que le masque fonctionne) */}
         <motion.div 
-          className="absolute inset-0 bg-slate-900/95 backdrop-blur-xl rounded-[2rem] border border-white/10 shadow-2xl"
+          className="absolute inset-0 bg-[#0f172a] rounded-[2rem] border border-white/10 shadow-2xl"
           style={{ 
             maskImage, 
-            WebkitMaskImage: maskImage // Pour la compatibilité iOS/Safari
+            WebkitMaskImage: maskImage 
           }}
         />
 
-        {/* 2. LA BULLE VERTE (Qui glisse en même temps) */}
+        {/* LE CERCLE VERT QUI GLISSE */}
         <motion.div
-          className="absolute -top-5 w-14 h-14 bg-[#39FF14] rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(57,255,20,0.4)]"
+          className="absolute -top-5 w-14 h-14 bg-[#39FF14] rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(57,255,20,0.4)] z-20"
           style={{ 
-            x, 
-            translateX: '-50%' // Centre la bulle sur la valeur x
+            left: x,
+            translateX: '-50%' 
           }}
         >
           {items[currentIndex] && (
@@ -101,17 +93,16 @@ export default function BottomNav() {
           )}
         </motion.div>
 
-        {/* 3. LES ICÔNES CLIQUABLES (Au-dessus de la barre) */}
+        {/* LES ICÔNES CLIQUABLES */}
         <div className="absolute inset-0 flex items-center justify-around z-10">
           {items.map((item, index) => {
             const isActive = index === currentIndex;
             const Icon = item.icon;
 
             return (
-              <Link
+              <button
                 key={item.href}
-                href={item.href}
-                onClick={() => setCurrentIndex(index)}
+                onClick={() => handleTabClick(index)}
                 className="flex-1 h-full flex flex-col items-center justify-center group outline-none"
               >
                 <Icon 
@@ -125,7 +116,10 @@ export default function BottomNav() {
                 }`}>
                   {item.label}
                 </span>
-              </Link>
+                
+                {/* On utilise un lien Next.js caché pour déclencher la navigation */}
+                <Link href={item.href} className="absolute inset-0 opacity-0" aria-label={item.label} />
+              </button>
             );
           })}
         </div>
